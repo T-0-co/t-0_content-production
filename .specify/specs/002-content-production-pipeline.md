@@ -226,7 +226,17 @@ The Content Creation DB has existing entries dating back to 2025. Processing the
 
 ---
 
-### US-10 — Social Distribution (Priority: Roadmap — Not V1)
+### US-10 — Claude Code Skill for Draft Generation (Priority: Roadmap)
+
+Package the research + draft + evaluate flow as a Claude Code skill, so Aaron can run the same pipeline conversationally using his Anthropic subscription instead of burning OpenRouter API credits through n8n. Same prompt templates, same brand context, same evaluation rubric — just executed via Claude Code instead of n8n.
+
+**Why Roadmap**: The n8n pipeline is the primary path (automated, button-triggered). The skill is an alternative for when Aaron wants more control over the process, or wants to iterate on a draft conversationally without the overhead of an API round-trip.
+
+**What the skill would contain**: The assembled system prompt, brand context loading (from Notion), research tools (Jina, Perplexity via MCP), evaluation rubric, and the same gate rules. Essentially WF-1 Branch A as a conversation flow.
+
+---
+
+### US-11 — Social Distribution (Priority: Roadmap — Not V1)
 
 Blog posts on Ghost serve as the canonical content source. LinkedIn and other platforms are downstream. The pipeline will generate platform-specific variants from published blog content.
 
@@ -781,11 +791,11 @@ Schedule Trigger / Webhook Trigger
 
 ---
 
-## Workflow 3: Image Generation (Modular)
+## Workflow 3: Image Generation (Adapted from Existing)
 
 **Webhook**: `POST https://n8n.t-0.co/webhook/t0-image-gen`
 **Trigger**: Called from WF-1 (Ghost publication branch), or standalone via "Run Image Gen" button
-**Based on**: Existing Josepha image generation workflow (adapted for T-0 style)
+**Based on**: The existing AI image generation workflow already running on n8n.t-0.co. This is NOT a new build — it's the existing workflow adapted to integrate with the content pipeline (adding Ghost upload and Notion write-back). Improvements to the workflow may happen along the way.
 
 ```
 Webhook Trigger (receives { pageId })
@@ -1152,7 +1162,7 @@ Create a page "T-0 Content Sources" in the T-0 Main DB (`2afc0fdf-942d-812e-b5db
 | Name | title | Source name (e.g., "Simon Willison") |
 | URL | url | Homepage URL |
 | RSS URL | url | RSS/Atom feed URL |
-| Type | select | Blog / Newsletter / News / Research / Podcast |
+| Type | select | Blog / Newsletter / News / Research / Podcast / Alert |
 | Language | select | DE / EN |
 | Region | select | DACH / US / EU / Global |
 | Status | status | Active / Paused / Archived |
@@ -1176,6 +1186,10 @@ Create a page "T-0 Content Sources" in the T-0 Main DB (`2afc0fdf-942d-812e-b5db
 | Stratechery | `stratechery.com/feed/` | Newsletter | 6 |
 | Daring Fireball | `daringfireball.net/feeds/main` | Blog | 3 |
 | Intercom Blog | `intercom.com/blog/feed/` | Blog | 5 |
+| Google Alert: KI Mittelstand | `google.com/alerts/feeds/...` (TBD) | Alert | 7 |
+| Google Alert: AI Agents | `google.com/alerts/feeds/...` (TBD) | Alert | 6 |
+
+**Google Alerts as sources**: Google Alerts can output RSS feeds (Settings → Deliver to: RSS feed). These are just RSS URLs and get ingested by WF-2's RSS branch like any other source. Create alerts for key terms (e.g., "KI Mittelstand", "AI Agents Enterprise", "MCP Protocol") and add the resulting feed URLs to the Content Sources DB with Type="Alert".
 
 ---
 
@@ -1423,10 +1437,11 @@ No content reaches Ghost in published state without Aaron's explicit action. All
 |-------|-------|----------|-------------|
 | **Phase A: Core Pipeline** | WF-1 (all three branches). Process existing entries. | P0 — build first | OpenRouter credential on n8n.t-0.co, Ghost "Content Pipeline" key, Notion properties + button |
 | **Phase B: Source Ingestion** | WF-2 (RSS + Slack). Content Sources DB. Notes DB extensions. | P2 | Content Sources DB created, Slack bot permissions verified |
-| **Phase C: Image Gen Integration** | WF-3 improvements. Integration with WF-1 Ghost branch. | P2 | Existing image gen workflow on n8n.t-0.co |
+| **Phase C: Image Gen Integration** | Adapt existing image gen workflow for pipeline integration. Add Ghost upload + Notion write-back. | P2 | Existing image gen workflow on n8n.t-0.co |
 | **Phase D: Ghost Tag Overhaul** | Clean up 62 tags, establish taxonomy, update posts. | P1 (parallel with A) | Ghost API access |
 | **Phase E: Ratchet Activation** | WF-4. Score analysis, A/B testing, PR generation. | P3 — after data accumulates | 20+ evaluated drafts, 2-3 months of operation |
 | **Phase F: Newsletter Optimization** | Ghost newsletter config, sender identity, subscriber management. | P2 | Ghost admin access |
+| **Future: Claude Code Skill** | Package draft generation flow as a Claude Code skill for conversational use. | Roadmap | WF-1 Branch A stable, prompts finalized |
 | **Future: Social Distribution** | LinkedIn, other platforms. Downstream from Ghost. | Roadmap | Core pipeline stable, platform APIs |
 
 **Phase A is the immediate priority.** It unblocks processing of existing entries, which is the primary business reason for building this pipeline.
@@ -1460,13 +1475,16 @@ All 22 questions resolved during design review with Aaron (2026-03-24):
 | DR-9 | Workflow architecture | Single-button trigger (WF-1) + scheduled ingestion (WF-2) + modular image gen (WF-3). |
 | DR-10 | Content type | Auto-detect + propose. Human confirms before next pipeline run. |
 | DR-11 | Ghost publish logic | Conditional: Due Date planned set + Publishable → schedule. Otherwise → draft. |
-| DR-12 | Image generation | Modular workflow, triggered from pipeline or standalone button. May improve along the way. |
+| DR-12 | Image generation | Adapt existing workflow (not rebuild). Modular, triggered from pipeline or standalone. |
 | DR-13 | Prompt language | English system prompts, German output default. Switch for English path when needed. |
 | DR-14 | Config loading | Notion Resources DB for brand context (runtime). Repo for prompts/style params (versioned). |
 | DR-15 | Evaluation calibration | Deferred. Ratchet dormant for first weeks until enough data exists. |
 | DR-16 | Ratchet scope | Full autonomy: prompts, parameters, AND source selection. Versioned via PRs. |
 | DR-17 | Newsletter | In scope. Ghost native. Posts sent as newsletter on publish. |
 | DR-18 | Social distribution | Roadmap, not v1. Blog is canonical source, platforms downstream. |
+| DR-24 | Claude Code skill | Roadmap. Package WF-1 Branch A as a skill for conversational use via Anthropic subscription. |
+| DR-25 | Google Alerts | Google Alerts RSS feeds as source type in Content Sources DB. No special handling — just RSS URLs. |
+| DR-26 | Image gen approach | Adapt existing n8n.t-0.co workflow, don't rebuild. |
 | DR-19 | Existing entries | High priority. This is why the pipeline is being built now. |
 | DR-20 | Ghost API key | Dedicated "Content Pipeline" integration. Stored in n8n credential management. |
 | DR-21 | Agent autonomy | Mostly deterministic. Agents get 2-3 tools max, clearly scoped tasks. No free planning. |
