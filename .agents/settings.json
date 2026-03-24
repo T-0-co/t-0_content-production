@@ -1,0 +1,5 @@
+{
+  "$schema": "https://claude.ai/claude-code/settings.schema.json",
+  "permissions": { "allow": [], "deny": [] },
+  "hooks": {}
+}
