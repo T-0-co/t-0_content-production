@@ -1807,3 +1807,209 @@ No content reaches Ghost in published state without Aaron's explicit action. Ver
 | **Phase D** | Self-improvement ratchet | US-7 | WF-6 (after enough data) |
 
 Phase A is the MVP — everything else builds on it. Start there.
+
+---
+
+## Addendum: Design Review Decisions (2026-03-24)
+
+This section captures decisions from the design review with Aaron. Once all open questions are resolved, the full spec will be rewritten to incorporate these changes.
+
+### DR-1: n8n Instance — CONFIRMED
+
+`n8n.t-0.co` is correct. 29 active workflows already running, including AI image generation triggered from Content Creation DB.
+
+### DR-2: LLM Access — OpenRouter + AI Agent Nodes (MAJOR CHANGE)
+
+**Original spec**: Raw HTTP Request nodes calling Anthropic/Perplexity APIs directly.
+**Revised**: Use n8n **AI Agent nodes** with **OpenRouter Chat Model** sub-node.
+
+Architecture per AI step:
+```
+AI Agent node
+├── Chat Model: OpenRouter (claude-sonnet-4-6 via OpenRouter)
+├── Tools: [Perplexity HTTP tool, Jina Reader tool, Notion tool, Code tool, ...]
+├── Output Parser: Structured Output (for JSON responses like evaluation scores)
+└── Memory: None (single-shot tasks, not conversational)
+```
+
+Key implications:
+- **Perplexity is a tool**, not a model. The AI Agent calls Perplexity when it needs web-grounded research.
+- **Default model**: Claude Sonnet 4.6 for everything (drafting, evaluation, triage, research).
+- **OpenRouter credential**: `OPENROUTER_API_KEY` in workspace `.env`. Already configured on `automation.kokal.cloud` as "OpenRouter account" (`HLx6M67udFO3DgEf`). Needs to be set up on `n8n.t-0.co`.
+- **Agent has autonomy** over tool selection — it decides when to call Perplexity, Jina, etc.
+
+### DR-3: Ghost — Single Working Key, URL Correction
+
+**Ghost URL**: `t-0.co` (NOT `blog.t-0.co` — base domain IS the Ghost instance)
+**Working key**: "T-0 MCP" custom integration
+- Key ID: `68c44700b9fe74000183817e`
+- Secret: `53071ab3f39b441293f50bf3b5f09d30a85782e95c770c5a85065daf26d3165b`
+- Currently stored on server only (MCP Hub + n8n env files)
+- 4 users: JJ (Owner), Aaron, Julien, Andreas (all Admin)
+- 10 posts, 62 tags (some duplicates), 1 newsletter
+
+### DR-4: Content Creation DB — Extend with Full Freedom
+
+Use existing DB (`2afc0fdf-942d-813e-bafa-fe13acf0b35f`). Breaking changes and extensive improvements allowed. Add all pipeline properties (evaluation scores, pipeline version, Ghost ID, etc.).
+
+Existing properties (from live DB):
+| Property | Type | Keep/Modify/Remove |
+|----------|------|-------------------|
+| Name | title | Keep |
+| Status | status | Keep (extend with pipeline states) |
+| Category Tags | multi_select | Keep |
+| URL | url | Keep |
+| Run Image Gen | button | Keep |
+| Due Date planned | date | Keep |
+| Pitch | rich_text | Keep |
+| Title | rich_text | Keep |
+| Related Content | relation | Keep |
+| Description | rich_text | Keep |
+| Notes | relation | Keep |
+| Publication Date actual | date | Keep |
+| Project | relation | Keep |
+| Target Audience Tags | multi_select | Keep |
+| Author | people | Keep |
+| Image Gen Description | rich_text | Keep |
+| Campaign | relation | Keep |
+| Platform | multi_select | Keep |
+| Image | files | Keep |
+| Lead | relation | Keep |
+| Reviewer | people | Keep |
+
+New properties to add:
+| Property | Type | Purpose |
+|----------|------|---------|
+| Run Pipeline | button | Single button triggering the main webhook |
+| Content Type | select | Auto-detected, human-confirmed |
+| Clarity Score | number | Eval dimension |
+| Structure Score | number | Eval dimension |
+| Accuracy Score | number | Eval dimension |
+| Credibility Score | number | Eval dimension |
+| Engagement Score | number | Eval dimension |
+| Voice Score | number | Eval dimension |
+| Actionability Score | number | Eval dimension |
+| Composite Score | number | Weighted total (max 40) |
+| Quality Tier | select | Excellent/Good/Acceptable/Below Standard/Poor |
+| Evaluation Notes | rich_text | Feedback summary |
+| Pipeline Version | rich_text | Git hash of config used |
+| Evaluated At | date | Last evaluation timestamp |
+| Ghost ID | rich_text | Ghost post ID after publication |
+| Source Type | select | RSS/Slack Rant/Manual/Mixed |
+| Feed Items | relation → Notes DB | Source material from Notes DB |
+
+### DR-5: Feed Items → Notes DB (MAJOR CHANGE)
+
+**Original spec**: New "Feed Items DB" for storing RSS articles and Slack rants.
+**Revised**: Use existing **Notes DB** (`2afc0fdf-942d-819a-b859-e69dcc48d67d`).
+
+The Notes DB already has:
+- Slack fields: `thread_ts_slack`, `channel_id_slack`, `contributors_slack`, `trigger reaction`
+- AI enrichment: `AI-Tags`, `AI-Category`, `AI Title`, `Summary`, `Description`
+- Origin tracking: `Origin` multi_select (values: `slack-to-notion`, `reprocessed`, `claude-code`, `Memos`, etc.)
+- **`Content Creation` relation** already linking to Content Creation DB
+- 28 properties total, mature schema
+
+For the pipeline:
+- RSS feed items get `Origin` = `rss-ingestion` (new value)
+- Slack discussions get `Origin` = `slack-auto-capture` (new value, distinct from manual `slack-to-notion`)
+- Add `Source` relation → Content Sources DB (new, for tracking which RSS source)
+- Use existing `Content Creation` relation to link notes to content entries
+
+### DR-6: Content Sources DB — New, in Main DB Pattern
+
+Create "T-0 Content Sources" page in T-0 Main DB (`2afc0fdf-942d-812e-b5db-f7595c7494e9`), with inline child database inside.
+
+Properties:
+| Property | Type | Purpose |
+|----------|------|---------|
+| Name | title | Source name |
+| URL | url | Homepage |
+| RSS URL | url | Feed URL |
+| Type | select | Blog/Newsletter/News/Research/Podcast |
+| Language | select | DE/EN |
+| Region | select | DACH/US/EU/Global |
+| Status | status | Active/Paused/Archived |
+| Weight | number | Priority 1-10 for triage |
+| Last Fetched | date | Last successful fetch |
+| Notes | rich_text | Why this source matters |
+
+### DR-7: No Pipeline Runs DB
+
+Use n8n's built-in execution history for monitoring. No separate Notion database needed.
+
+### DR-8: Slack Ingestion — Timer-Based, Smarter Filtering
+
+**Original spec**: Emoji-reaction-triggered Slack-to-Notion workflow.
+**Revised**: Timer-based (scheduled) ingestion replacing the existing workflow.
+
+Rules:
+- Run on schedule (e.g., every 6 hours or daily)
+- Fetch ALL messages from #tech-shit-talk since last run
+- **Filter**: 2+ replies from 2+ different people
+- Lightweight enrichment (just enough context to understand at a glance in Notion)
+- Store in Notes DB with `Origin` = `slack-auto-capture`
+- Existing emoji-reaction workflow becomes superfluous
+
+### DR-9: Single-Button Workflow Architecture (MAJOR CHANGE)
+
+**Original spec**: 6 separate n8n workflows (WF-1 through WF-6).
+**Revised**: One main n8n workflow with branching + one ingestion workflow.
+
+**Workflow 1: Content Pipeline** (single button trigger)
+```
+"Run Pipeline" button on Content Creation DB
+  → Webhook fires with all page properties
+  → Code node: inspect Status + Content Type + other properties
+  → Switch/IF branching:
+
+  Status = "Idea" or "Backlog":
+    → Research + Draft Generation + Evaluation
+    → Write draft to page, scores to properties
+    → Propose Content Type if not set
+
+  Status = "In Revision":
+    → Read Aaron's feedback comments
+    → Regenerate draft with feedback
+    → Re-evaluate
+
+  Status = "Pre Review" (or "Publishable"):
+    → Ghost publication flow
+    → Image generation (if needed)
+    → Update Notion with Ghost URL
+```
+
+**Workflow 2: Source Ingestion** (scheduled)
+```
+Schedule Trigger (e.g., Sunday 8AM + every 6h for Slack)
+  → RSS feed ingestion → Notes DB
+  → Slack #tech-shit-talk ingestion → Notes DB
+  → AI triage: select top items
+  → Create Content Creation entries as "Idea"
+```
+
+Fire-and-forget pattern: Button press gets immediate "processing" response, n8n works async and writes results back to Notion.
+
+### DR-10: Content Type — Auto-Detect + Propose
+
+Pipeline auto-detects content type (Opinion, Resource, Case Study, Technical, Announcement) and writes it to the Content Type property. Aaron reviews/changes it in Notion before pressing the button again to advance.
+
+## Remaining Open Questions (Q10-Q22)
+
+These still need Aaron's input:
+
+| # | Question | Options |
+|---|----------|---------|
+| Q10 | Ghost — draft or scheduled? | (a) Always draft, (b) Auto-schedule if Due Date set, (c) Always draft never schedule |
+| Q11 | Image gen — fold into main workflow or keep separate? | (a) Part of main workflow when Status=Publishable, (b) Separate workflow/button |
+| Q12 | Prompt language? | (a) English, (b) German, (c) Mixed |
+| Q13 | Where do prompt templates live? | (a) Notion wiki, (b) This repo, (c) Hardcoded in n8n, (d) Hybrid |
+| Q14 | Evaluation calibration examples? | Existing posts, synthetic examples, or skip for now? |
+| Q15 | Ratchet scope — what can it change? | Only prompts, or also weights/counts/criteria? |
+| Q16 | Newsletter sending? | In scope or out of scope? |
+| Q17 | LinkedIn post generation? | In scope or out of scope? |
+| Q18 | Process existing entries on go-live? | Yes or only new entries? |
+| Q19 | Ghost key storage? | (a) Add to .env+SOPS, (b) n8n credential only, (c) Both |
+| Q20 | How agentic? | Structured pipeline with focused agents, or full agentic with tool autonomy? |
+| Q21 | Notes DB — add `Source` relation + new Origin values? | Yes/No |
+| Q22 | Ghost tag cleanup? | Yes/No |
