@@ -1,8 +1,8 @@
 # Spec 002: T-0 Content Production Pipeline — Full System Design
 
 **Created**: 2026-03-24
-**Status**: Draft (Design Review)
-**Type**: System Design — comprehensive specification for discussion before implementation
+**Status**: Design Complete — ready for implementation planning
+**Type**: System Design — comprehensive specification
 **Input**: "Scope out and design the entire system so we can then discuss it before we actually build it."
 
 ---
@@ -21,6 +21,8 @@ The pipeline follows the **autoresearch pattern** (Karpathy, 2026):
 
 **Design goal**: Not "produce more content faster." Instead: produce content that scores ≥28 on the evaluation rubric, sounds unmistakably T-0, and improves with each iteration.
 
+**Highest priority**: Process existing Content Creation DB entries to publishable quality. This is why the pipeline is being built now.
+
 ---
 
 ## Actors & Roles
@@ -29,166 +31,223 @@ The pipeline follows the **autoresearch pattern** (Karpathy, 2026):
 |-------|------------------|-------------|
 | **Aaron** | Editorial lead. Enters topic ideas, reviews drafts, approves publication, tunes pipeline parameters, monitors ratchet performance. | Notion (ideas, reviews), Ghost Admin (final check), this repo (config) |
 | **Julien** | Co-founder. Posts in #tech-shit-talk (raw material for pipeline), occasionally reviews drafts. | Slack (source material), Notion (review) |
-| **Pipeline (n8n)** | Autonomous agent. Ingests sources, triages, generates drafts, evaluates, generates images. Runs on schedule + on-demand. | n8n workflows on `n8n.t-0.co` |
+| **Pipeline (n8n)** | Orchestrator. Ingests sources, triages, generates drafts, evaluates, generates images. Runs on schedule + on-demand via button. Mostly deterministic with focused AI Agent nodes at specific steps. | n8n workflows on `n8n.t-0.co` |
 | **Claude (in conversation)** | Ad-hoc assistant. Helps Aaron refine drafts, debug pipeline issues, analyze ratchet data. | Claude Code / MCP tools |
 
 ---
 
 ## User Stories
 
-### US-1 — Aaron Enters a Topic Idea and Gets a Draft (Priority: P1)
+### US-1 — Aaron Presses "Run Pipeline" and Gets a Draft (Priority: P0)
 
-Aaron has a topic in mind — maybe from a client conversation, a news article, or a Slack rant. He creates an entry in the Content Creation DB with a name, pitch, and optional source URL. The pipeline picks it up, researches the topic, generates a draft following T-0's brand voice, evaluates it, and presents the scored draft in Notion for review.
+Aaron has a topic in the Content Creation DB. He presses the "Run Pipeline" button. The pipeline inspects the entry's Status and properties, researches the topic, generates a draft following T-0's brand voice, evaluates it, and writes the scored draft back to the Notion page. One button, adaptive behavior.
 
-**Why P1**: This is the core value loop. Everything else builds on this.
+**Why P0**: This is the core value loop. Everything else builds on it. And the existing entries in the Content Creation DB need processing NOW.
 
-**Independent test**: Create a Content Creation DB entry with status "Backlog" → pipeline generates a scored draft within the same Notion page → Aaron reads it and can provide feedback.
+**Trigger**: "Run Pipeline" button on Content Creation DB → Notion automation → webhook to n8n
+
+**Status-dependent behavior**:
+
+| Status | Pipeline Action |
+|--------|----------------|
+| Idea / Backlog | Research → Draft → Evaluate → Propose Content Type |
+| In Revision | Read Aaron's feedback → Re-draft incorporating feedback → Re-evaluate |
+| Publishable | Ghost publication (draft or scheduled) → Image generation if needed |
 
 **Acceptance scenarios**:
 
-1. **Given** a Content Creation entry with Name="MCP vs A2A: Was Mittelständler wissen müssen", Pitch="Vergleich der Protokolle...", Status="Backlog", **When** the pipeline runs, **Then** a draft appears in the page body, all 7 evaluation scores are written to properties, and Status advances to "Pre Review" (if scores meet threshold) or stays at "Draft" (if below).
+1. **Given** a Content Creation entry with Name="MCP vs A2A: Was Mittelständler wissen müssen", Pitch="Vergleich der Protokolle...", Status="Backlog", **When** Aaron presses "Run Pipeline", **Then** a draft appears in the page body, all 7 evaluation scores are written to properties, Content Type is auto-detected and proposed, and Status advances to "Pre Review" (if scores meet threshold) or stays at "Draft" (if below).
 
-2. **Given** a Content Creation entry with a source URL pointing to a news article, **When** the pipeline generates a draft, **Then** the draft incorporates specific facts and quotes from that source article (fetched via Jina Reader), properly cited as embedded hyperlinks per Brand Writing Guide v2.2.
+2. **Given** a Content Creation entry with a source URL pointing to a news article, **When** the pipeline generates a draft, **Then** the draft incorporates specific facts from that source article (fetched via Jina Reader), properly cited as embedded hyperlinks per Brand Writing Guide v2.2.
 
 3. **Given** a Content Creation entry with no pitch (just a name), **When** the pipeline runs, **Then** it still generates a draft by researching the topic via Perplexity, but flags it as "low-context — human input recommended" in a Notion callout block.
 
----
+4. **Given** a "Publishable" entry with Due Date planned set to next Tuesday, **When** Aaron presses "Run Pipeline", **Then** a Ghost post is created with `status: "scheduled"` and `published_at` set to Due Date planned at 09:00 CET.
 
-### US-2 — Weekly Source Ingestion Surfaces New Topics (Priority: P2)
-
-Every week, the pipeline automatically fetches RSS feeds from tracked sources, reads recent Slack #tech-shit-talk discussions, deduplicates against previously seen items, and uses AI triage to select the most relevant topics for T-0's audience. Selected topics appear as new "Idea" entries in the Content Creation DB, ready for Aaron to promote to "Backlog" (triggering US-1).
-
-**Why P2**: Without source ingestion, Aaron manually finds and enters every topic. This automates the discovery half of content creation.
-
-**Independent test**: Configure 5 RSS sources → run ingestion → see new Idea entries appear in Content Creation DB with source links and AI-generated pitches.
-
-**Acceptance scenarios**:
-
-1. **Given** 5 active RSS sources in the Sources DB and the pipeline runs on Sunday 8AM, **When** ingestion completes, **Then** new feed items are stored (deduplicated against previous weeks), AI triage selects top 5-8 topics, and each becomes a Content Creation entry with Status="Idea", a generated Pitch, the source URL, and Category Tags.
-
-2. **Given** a Slack #tech-shit-talk thread where Julien ranted about a new AI tool, **When** the pipeline runs, **Then** the rant is captured, summarized, and appears as an Idea entry with the original Slack thread linked and the rant's key arguments preserved in the Description field.
-
-3. **Given** that a topic was already ingested last week and still exists in the Content Creation DB, **When** a new article about the same topic appears in RSS this week, **Then** the pipeline adds the new URL to the existing entry's Related Content rather than creating a duplicate.
+5. **Given** a "Publishable" entry with no Due Date planned, **When** Aaron presses "Run Pipeline", **Then** a Ghost draft is created (not scheduled), and Aaron publishes manually in Ghost Admin.
 
 ---
 
-### US-3 — Automated Evaluation Scores Every Draft (Priority: P1)
+### US-2 — Source Ingestion Surfaces New Topics (Priority: P2)
 
-Every draft produced by the pipeline (or written manually and placed in the page body) gets automatically evaluated against the Content Evaluation Guide rubric. Seven dimension scores plus a weighted composite are written to Notion properties. Drafts scoring ≥28 composite with no dimension <3 and Voice ≥4 advance to "Pre Review." Drafts below threshold stay at "Draft" with specific feedback.
+On a schedule, the pipeline fetches RSS feeds from tracked sources and captures meaningful Slack #tech-shit-talk discussions. AI triage selects the most relevant items for T-0's audience. Selected topics appear as new "Idea" entries in the Content Creation DB.
 
-**Why P1**: The evaluator IS the autoresearch ratchet's fixed point. Without automated evaluation, there's no feedback loop.
+**Why P2**: Without source ingestion, Aaron manually finds every topic. This automates discovery.
 
-**Independent test**: Manually paste any draft text into a Content Creation page body → trigger evaluation → scores appear in properties within 60 seconds.
+**Trigger**: Scheduled (RSS: weekly Sunday 8AM CET; Slack: every 6 hours)
 
 **Acceptance scenarios**:
 
-1. **Given** a draft in a Content Creation page body, **When** evaluation runs, **Then** seven dimension scores (Clarity, Structure, Accuracy, Credibility, Engagement, Voice, Actionability) are written to number properties, plus a Composite Score (weighted, max 40), plus a Quality Tier text (Excellent/Good/Acceptable/Below Standard/Poor), plus dimension-specific feedback in a "Evaluation Notes" block at the bottom of the page.
+1. **Given** 5 active RSS sources in the Content Sources DB, **When** the weekly ingestion runs, **Then** new feed items are stored in the Notes DB (deduplicated by URL), AI triage selects top 5-8 topics, and each selected item becomes a Content Creation entry with Status="Idea", an auto-generated Pitch, the source URL, and Category Tags.
 
-2. **Given** a draft that scores Voice=3 but Composite=30, **When** evaluation completes, **Then** Status remains "Draft" (not advanced to "Pre Review") and the evaluation notes specifically call out: "Voice score below minimum threshold (4). Draft does not advance regardless of composite score."
+2. **Given** a Slack #tech-shit-talk thread where Julien and 2 colleagues discussed a new AI tool (2+ replies from 2+ different people), **When** the Slack ingestion runs, **Then** the discussion is captured in the Notes DB with Origin="slack-auto-capture", summarized, and flagged for triage.
 
-3. **Given** a draft that scores Composite=35 with all dimensions ≥4, **When** evaluation completes, **Then** Status advances to "Pre Review" and a Notion comment is created: "Draft ready for human review. Composite: 35/40 (Excellent)."
+3. **Given** a topic was already ingested last week, **When** a new article about the same topic appears, **Then** the pipeline adds the new URL to the existing Notes DB entry's Related Content rather than creating a duplicate.
 
 ---
 
-### US-4 — Aaron Reviews and Approves a Draft (Priority: P1)
+### US-3 — Automated Evaluation Scores Every Draft (Priority: P0)
 
-Aaron opens a "Pre Review" draft in Notion, reads the content and evaluation scores, and either approves it (moves to "Publishable"), requests revisions (moves to "In Revision" with comments), or rejects it (moves back to "Idea" or archives). When moved to "In Revision," the pipeline can optionally re-draft based on Aaron's feedback and re-evaluate.
+Every draft produced by the pipeline gets evaluated against the Content Evaluation Guide rubric. Seven dimension scores plus a weighted composite are written to Notion properties. Drafts meeting all thresholds advance to "Pre Review." Drafts below threshold stay at "Draft" with specific feedback.
 
-**Why P1**: The human gate is a constitutional principle. The pipeline must support this workflow cleanly.
+**Why P0**: The evaluator IS the autoresearch ratchet's fixed point. Without it, there's no feedback loop.
 
-**Independent test**: Move a scored draft to "In Revision" with a comment "Zu generisch, mehr eigene Erfahrung einbauen" → pipeline regenerates with that feedback incorporated → new scores appear.
+**Gate rules**:
+- Composite ≥ 28 AND all dimensions ≥ 3 AND Voice ≥ 4 → advance to "Pre Review"
+- Voice < 4 → **blocked** regardless of composite (constitutional principle)
+- Any dimension < 3 → blocked, specific feedback required
 
 **Acceptance scenarios**:
 
-1. **Given** a "Pre Review" draft, **When** Aaron moves Status to "Publishable", **Then** no automated action occurs — the draft waits for explicit publication trigger (US-5).
+1. **Given** a draft in a Content Creation page body, **When** evaluation runs, **Then** seven dimension scores are written to number properties, plus Composite Score (weighted, max 40), Quality Tier, and Evaluation Notes with per-dimension feedback.
 
-2. **Given** a "Pre Review" draft, **When** Aaron moves Status to "In Revision" and adds a Notion comment with feedback, **Then** the pipeline reads the comment, regenerates the draft incorporating the feedback while preserving the original draft (appended as a collapsed "Previous Version" toggle block), and re-evaluates. Status returns to "Draft" → "Pre Review" if scores pass.
+2. **Given** a draft that scores Voice=3 but Composite=30, **When** evaluation completes, **Then** Status remains "Draft" (not advanced) and notes specifically flag: "Voice score below minimum threshold (4)."
 
-3. **Given** a "Pre Review" draft, **When** Aaron moves Status to "Idea" (rejection), **Then** no further automated action. The entry returns to the idea pool.
+3. **Given** a draft scoring Composite=35 with all dimensions ≥4, **When** evaluation completes, **Then** Status advances to "Pre Review" and a Notion comment notifies Aaron.
 
 ---
 
-### US-5 — Publishable Draft Goes to Ghost (Priority: P2)
+### US-4 — Aaron Reviews and Approves a Draft (Priority: P0)
 
-When Aaron moves a draft to "Publishable," the pipeline converts it to Ghost-compatible HTML, uploads the featured image, creates a Ghost draft post with proper tags/SEO/excerpt, and notifies Aaron. Aaron does a final visual check in Ghost Admin and hits publish (or schedules).
+Aaron opens a "Pre Review" draft in Notion, reads the content and evaluation scores, and decides: approve, request revisions, or reject.
 
-**Why P2**: Publication is the output of the pipeline but depends on P1 stories working first.
+**Why P0**: The human gate is a constitutional principle.
 
-**Independent test**: Move a "Publishable" entry to trigger Ghost draft creation → verify the post appears in Ghost Admin at blog.t-0.co with correct formatting, tags, and image.
+**Aaron's actions**:
 
-**Acceptance scenarios**:
+| Action | Status Change | Pipeline Response |
+|--------|---------------|-------------------|
+| Approve | → "Publishable" | Aaron presses "Run Pipeline" → WF-1 Ghost branch |
+| Request revision | → "In Revision" + comment | Aaron presses "Run Pipeline" → WF-1 Revision branch |
+| Reject | → "Idea" or archive | No pipeline action |
+| Edit directly | Stays "Pre Review" | Manual edits; Aaron re-triggers eval if desired |
 
-1. **Given** a "Publishable" Content Creation entry with a draft body, featured image, and Category Tags, **When** the publication workflow triggers, **Then** a Ghost draft post is created at `blog.t-0.co` with: title from the entry's Title property (or Name if Title is empty), HTML body converted from the Notion blocks, `custom_excerpt` from the Pitch property, tags mapped from Category Tags, author set to the entry's Author, `feature_image` uploaded via Ghost image API, and `meta_title`/`meta_description` auto-generated from the content.
-
-2. **Given** the Ghost draft is created, **When** the workflow completes, **Then** the Content Creation entry's Status advances to "Published", the Ghost post URL is written to the URL property, and the Publication Date actual is set to now.
-
-3. **Given** that Aaron wants to schedule a post for next Tuesday, **When** he sets the Due Date planned property before moving to "Publishable", **Then** the Ghost post is created with `status: "scheduled"` and `published_at` set to Due Date planned at 09:00 CET.
-
----
-
-### US-6 — Branded Image Generation for Each Post (Priority: P3)
-
-Each publishable post gets a branded illustration generated using the existing Gemini image generation workflow. The image follows T-0's illustration style, incorporates the post's topic, and is uploaded to Google Drive and embedded in both Notion and Ghost.
-
-**Why P3**: Images enhance posts but aren't blocking for the core pipeline. The image gen workflow already exists (Josepha + n8n.t-0.co).
-
-**Independent test**: Click "Run Image Gen" button on a Content Creation entry → image appears in the Image property and as an embedded block in the page body.
-
-**Acceptance scenarios**:
-
-1. **Given** a Content Creation entry with an Image Gen Description, **When** the image generation workflow triggers, **Then** the description is enhanced via Perplexity (incorporating T-0 illustration style guide), Gemini generates an image, the image is uploaded to Google Drive, the Drive URL is written to the Image property, and an image block is appended to the Notion page.
-
-2. **Given** a Content Creation entry with NO Image Gen Description, **When** image generation triggers, **Then** the pipeline auto-generates an image description from the post title and pitch, proceeding as in scenario 1.
+**Revision handling**: When Aaron presses "Run Pipeline" on an "In Revision" entry:
+1. Pipeline reads all recent comments on the page
+2. Preserves the current draft in a toggle block: "▸ Previous Version (v{n})"
+3. Regenerates using original research bundle + Aaron's feedback
+4. Re-evaluates the new draft
 
 ---
 
-### US-7 — Self-Improvement Ratchet (Priority: P3)
+### US-5 — Publishable Draft Goes to Ghost (Priority: P1)
 
-Monthly, the pipeline analyzes evaluation scores across all drafts produced in the period, identifies which prompt/parameter changes correlated with score improvements, and proposes configuration updates. Changes are applied only if they demonstrably improve scores on a held-out set of past topics.
+When Aaron presses "Run Pipeline" on a "Publishable" entry, the pipeline converts it to Ghost-compatible HTML, handles image upload, creates a Ghost post, and conditionally schedules it.
 
-**Why P3**: The ratchet is the long-term differentiator but requires US-1 through US-3 generating enough data first. Likely relevant after 2-3 months of pipeline operation.
+**Why P1**: Publication is the output of the pipeline but depends on P0 stories working first.
 
-**Independent test**: After 20+ evaluated drafts exist, run the ratchet analysis → receive a report of which dimensions improved/degraded and proposed prompt adjustments.
+**Conditional logic**:
+- **Due Date planned is set** → create Ghost post with `status: "scheduled"`, `published_at` = Due Date at 09:00 CET
+- **No Due Date planned** → create Ghost draft, Aaron publishes manually
+
+**Newsletter**: Ghost natively ties blog posts to newsletter distribution. Pipeline sets the newsletter association (`default-newsletter`) on all posts. When Aaron publishes (or schedule fires), the newsletter is sent automatically.
 
 **Acceptance scenarios**:
 
-1. **Given** 20+ evaluated drafts in the Content Creation DB, **When** the ratchet analysis runs, **Then** it produces a report (Notion page) showing: score trends per dimension, average composite over time, best/worst performing content types, and specific prompt parameter change proposals.
+1. **Given** a "Publishable" entry with draft body, featured image, and Category Tags, **When** Aaron presses "Run Pipeline", **Then** a Ghost post is created at `t-0.co` with correct title, HTML body, tags, excerpt, featured image, SEO fields, and newsletter association.
 
-2. **Given** a proposed prompt change (e.g., "add more concrete examples in opening"), **When** the ratchet tests it against 5 previously-generated topics (regenerating drafts with the new prompt and re-evaluating), **Then** it accepts the change only if the average composite improves by ≥1 point AND no dimension score decreases by >0.5 on average.
+2. **Given** Due Date planned = "2026-04-15", **When** the Ghost branch runs, **Then** the post is created with `status: "scheduled"` and `published_at: "2026-04-15T09:00:00.000+02:00"`.
 
-3. **Given** that a ratchet-proposed change is accepted, **When** it is applied, **Then** the change is committed to this repo's prompt templates with a commit message referencing the ratchet run, the score improvement, and the specific change made.
+3. **Given** no Due Date planned, **When** the Ghost branch runs, **Then** the post is created as `status: "draft"`. Aaron reviews in Ghost Admin and manually clicks Publish.
+
+4. **Given** the Ghost post is created, **Then** the Content Creation entry's URL property gets the Ghost post URL, Ghost ID property gets the post ID, and Status advances to "Published".
 
 ---
 
-### US-8 — Slack Rant Augmentation (Priority: P2)
+### US-6 — Branded Image Generation (Priority: P2)
 
-Discussions in #tech-shit-talk often contain raw, opinionated takes that embody T-0's voice. The pipeline captures these, extracts the core arguments and strong opinions, and injects them into draft generation as "voice seeds" — ensuring drafts have the authentic edge that comes from real conversations.
+Each post gets a branded illustration via the existing Gemini image gen workflow. The workflow is modular — callable from the main pipeline during Ghost publication, or standalone via the existing "Run Image Gen" button.
 
-**Why P2**: This is what makes T-0 content sound like T-0, not like generic AI consultancy content. The rants are the raw voice material.
-
-**Independent test**: Post a rant in #tech-shit-talk about a topic → see it appear as source material linked to a Content Creation entry → verify the generated draft incorporates the rant's key arguments and tone.
+**Why P2**: Images enhance posts. The workflow already exists and serves other purposes, so keeping it modular is important.
 
 **Acceptance scenarios**:
 
-1. **Given** Julien posts in #tech-shit-talk: "ChatGPT ist Spielzeug. Wer damit ernsthaft arbeiten will, braucht Agents mit echtem Tool-Zugang", **When** the pipeline ingests this, **Then** it creates a feed item capturing: the original text, the author, the timestamp, extracted arguments ("ChatGPT = toy for serious work", "agents need real tool access"), and a suggested topic angle.
+1. **Given** a Content Creation entry with an Image Gen Description, **When** image generation triggers, **Then** the description is enhanced (incorporating T-0 illustration style), Gemini generates an image, it's uploaded to Google Drive, and the URL is written to the Image property.
 
-2. **Given** a Content Creation entry about AI agents with a linked Slack rant, **When** draft generation runs, **Then** the draft incorporates the rant's strong opinion ("Spielzeug für den normalen Nutzer") as a voice seed — not as a quote, but as a tonal anchor that influences the draft's stance and language.
+2. **Given** no Image Gen Description, **When** image gen triggers, **Then** the pipeline auto-generates a description from the post title and pitch.
+
+3. **Given** image gen runs as part of Ghost publication, **Then** the featured image is also uploaded to Ghost via the image upload API.
+
+---
+
+### US-7 — Self-Improvement Ratchet (Priority: P3 — Dormant Initially)
+
+The ratchet is dormant for the first weeks of pipeline operation. Once enough evaluated content exists (20+ drafts), it activates: analyzes score trends, proposes and A/B tests config changes, applies improvements that demonstrably raise scores.
+
+**Why P3**: Requires US-1 through US-3 generating enough data first. Expected activation: 2-3 months after pipeline launch.
+
+**Scope — full autonomy with versioning**:
+The ratchet can modify:
+- Prompt templates (wording, instructions, examples)
+- Style parameters (opinion strength, word counts, opening/closing pattern weights)
+- Source selection and weighting (RSS source priorities, Slack filtering thresholds)
+
+All changes are committed to this repo via PR (not direct to main). Aaron reviews and merges. Every change includes the ratchet run reference, score improvement data, and a rollback path.
+
+**Acceptance scenarios**:
+
+1. **Given** 20+ evaluated drafts, **When** the ratchet runs, **Then** it produces a report showing score trends, proposals tested, and accept/reject decisions with supporting data.
+
+2. **Given** a proposed change passes A/B testing (avg composite improves ≥1 point, no dimension drops >0.5), **Then** a PR is created in this repo with the change, ratchet metadata, and before/after scores.
+
+3. **Given** a ratchet change is merged, **Then** subsequent pipeline runs use the updated config and scores are tracked against the new baseline.
+
+---
+
+### US-8 — Slack Discussion Capture (Priority: P2)
+
+Timer-based ingestion replaces the existing emoji-reaction Slack workflow. Captures meaningful discussions from #tech-shit-talk as raw material for content creation.
+
+**Why P2**: Slack rants are what make T-0 content sound like T-0. This is the authentic voice material.
+
+**Filter**: 2+ replies from 2+ different people (captures real discussions, not just popular one-liners).
+
+**Acceptance scenarios**:
+
+1. **Given** Julien and Aaron discuss a topic in #tech-shit-talk with 3+ replies, **When** the Slack ingestion runs, **Then** the thread is captured in the Notes DB with Origin="slack-auto-capture", full thread text, participants, and a lightweight AI summary.
+
+2. **Given** a captured Slack discussion is selected during triage, **When** it becomes a Content Creation entry, **Then** the rant's strong opinions and specific phrasings are preserved as "voice seeds" in the Notes relation.
+
+3. **Given** the timer-based workflow is deployed, **Then** the existing emoji-reaction Slack-to-Notion workflow becomes superfluous and can be deactivated.
+
+---
+
+### US-9 — Process Existing Content Creation Entries (Priority: P0)
+
+The Content Creation DB has existing entries dating back to 2025. Processing these to publishable quality is the primary reason the pipeline is being built.
+
+**Why P0**: This is the immediate business value. The pipeline's first job is to finish those drafts.
+
+**Acceptance scenarios**:
+
+1. **Given** existing "Idea" and "Backlog" entries, **When** Aaron presses "Run Pipeline" on each, **Then** the pipeline generates drafts, evaluates them, and Aaron reviews/revises until they reach "Publishable".
+
+2. **Given** all existing entries are processed to "Publishable", **Then** Aaron sets Due Date planned on each and uses the pipeline to schedule them for publication, creating a consistent publication cadence.
+
+---
+
+### US-10 — Social Distribution (Priority: Roadmap — Not V1)
+
+Blog posts on Ghost serve as the canonical content source. LinkedIn and other platforms are downstream. The pipeline will generate platform-specific variants from published blog content.
+
+**Why Roadmap**: The blog is the foundation. Distribution is important but depends on the core pipeline working first. Content Creation DB already has a Platform multi-select that includes "LinkedIn."
+
+**Not built in v1. Architectural consideration**: When designing the Ghost publication branch, structure content and metadata in a way that makes downstream platform extraction straightforward.
 
 ---
 
 ### Edge Cases
 
-- **Empty RSS feed**: Source returns 200 but no items → log, skip, don't create empty feed items
-- **Duplicate topic from multiple sources**: Same news covered by 3 RSS feeds → dedup by URL first, then by semantic similarity (Perplexity) for different URLs about the same event
-- **Draft generation fails**: API error mid-generation → status stays at "Backlog", error logged to pipeline run entry, Notion comment added: "Draft generation failed: [error]. Will retry on next run."
-- **Evaluation produces inconsistent scores**: E.g., Clarity=5 but Structure=1 → flag as anomaly, request re-evaluation with explicit reasoning
-- **Ghost API quota/rate limits**: Ghost Admin API has no published rate limits, but batch operations should use 1-second delays between posts
-- **Notion API pagination**: Content Creation DB queries may exceed 100 items → all queries must handle pagination (start_cursor + has_more)
-- **Very long drafts**: Notion blocks API accepts max 100 blocks per PATCH → batch block appends (Josepha pattern)
-- **Stale Slack rants**: Rant is 3+ weeks old → still capture but tag as "stale" for lower priority in triage
-- **Conflicting human edits**: Aaron edits a draft in Notion while pipeline is also updating → pipeline should always fetch latest version before writing, use Notion's last_edited_time as collision guard
-- **Image generation fails**: Gemini API error → post proceeds without image, Image property stays empty, Notion comment: "Image generation failed. Generate manually via Run Image Gen button."
-- **Source URL is paywalled**: Jina Reader returns partial/no content → fall back to RSS summary + Perplexity research, flag in draft: "Source article was paywalled; content based on available summary."
+- **Empty RSS feed**: Source returns 200 but no items → log, skip, continue
+- **Duplicate topic from multiple sources**: Dedup by URL first, then semantic similarity
+- **Draft generation fails**: Status stays unchanged, error comment on Notion page
+- **Evaluation produces out-of-range scores**: Re-run with explicit range instruction
+- **Ghost API error**: Status stays "Publishable", error comment in Notion
+- **Paywalled source URL**: Jina returns partial content → fall back to RSS summary + Perplexity research, flag in draft
+- **Image generation fails**: Post proceeds without image, Notion comment added
+- **Very long drafts**: Notion blocks batched by 100 (Josepha pattern)
+- **Conflicting human edits**: Pipeline fetches latest page version before writing
+- **Stale Slack discussions**: 3+ weeks old → still capture but lower triage priority
 
 ---
 
@@ -197,44 +256,43 @@ Discussions in #tech-shit-talk often contain raw, opinionated takes that embody 
 ### Component Map
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    THIS REPO (Config Layer)                   │
-│  prompts/  ·  sources.yaml  ·  style-params.yaml  ·  docs/  │
-└──────────────────────────┬──────────────────────────────────┘
-                           │ consumed by
-                           ▼
-┌─────────────────────────────────────────────────────────────┐
-│                n8n.t-0.co (Orchestration Layer)               │
-│                                                               │
-│  WF-1: Source Ingestion ──→ WF-2: Draft Generation           │
-│           │                        │                          │
-│           ▼                        ▼                          │
-│  WF-3: Evaluation ←──────── WF-5: Image Gen                 │
-│           │                                                   │
-│           ▼                                                   │
-│  WF-4: Ghost Publication                                     │
-│           │                                                   │
-│  WF-6: Ratchet Analysis (monthly)                            │
-└──────┬─────────┬──────────┬──────────┬──────────┬───────────┘
+┌──────────────────────────────────────────────────────────────┐
+│                    THIS REPO (Config Layer)                    │
+│  prompts/  ·  config/style-params.yaml  ·  docs/sources/     │
+└────────────────────────────┬─────────────────────────────────┘
+                             │ consumed by (GitHub raw URL)
+                             ▼
+┌──────────────────────────────────────────────────────────────┐
+│                 n8n.t-0.co (Orchestration Layer)               │
+│                                                                │
+│  WF-1: Content Pipeline ──→ single-button, branches by Status │
+│    ├── Idea/Backlog → Research → Draft → Evaluate              │
+│    ├── In Revision  → Feedback → Re-draft → Re-evaluate       │
+│    └── Publishable  → Ghost publish + Image gen                │
+│                                                                │
+│  WF-2: Source Ingestion ──→ scheduled (RSS weekly, Slack 6h)   │
+│    └── RSS + Slack → Notes DB → AI Triage → Content Ideas      │
+│                                                                │
+│  WF-3: Image Generation ──→ modular (from WF-1 or standalone) │
+│                                                                │
+│  WF-4: Ratchet Analysis ──→ monthly (dormant initially)        │
+└──────┬─────────┬──────────┬──────────┬──────────┬────────────┘
        │         │          │          │          │
        ▼         ▼          ▼          ▼          ▼
-   ┌───────┐ ┌───────┐ ┌────────┐ ┌────────┐ ┌────────┐
-   │Notion │ │Ghost  │ │Perplx. │ │Claude  │ │Gemini  │
-   │Content│ │CMS    │ │sonar   │ │Opus/   │ │imagen  │
-   │DB     │ │blog.  │ │-pro    │ │Sonnet  │ │        │
-   │       │ │t-0.co │ │        │ │        │ │        │
-   └───┬───┘ └───────┘ └────────┘ └────────┘ └────────┘
-       │
-       ▼
-   ┌───────┐  ┌───────┐  ┌───────┐
-   │Sources│  │Feed   │  │Pipeline│
-   │DB     │  │Items  │  │Runs DB │
-   │(new)  │  │DB(new)│  │(new)   │
-   └───────┘  └───────┘  └───────┘
+   ┌───────┐ ┌───────┐ ┌────────┐ ┌──────────┐ ┌────────┐
+   │Notion │ │Ghost  │ │OpenRtr │ │Perplexity│ │Gemini  │
+   │       │ │CMS    │ │(Claude │ │(AI Agent │ │(imagen)│
+   │       │ │t-0.co │ │Sonnet) │ │tool)     │ │        │
+   └──┬────┘ └───────┘ └────────┘ └──────────┘ └────────┘
+      │
+      ├── Content Creation DB (extended)
+      ├── Notes DB (extended — replaces Feed Items concept)
+      ├── Content Sources DB (new, in T-0 Main DB)
+      └── T-0 Wiki pages (Brand Writing Guide, Blog Content Guide, etc.)
 
 External Inputs:
   ├── RSS Feeds (via HTTP GET)
-  ├── Slack #tech-shit-talk (via Slack API / MCP Hub)
+  ├── Slack #tech-shit-talk (via Slack API)
   ├── Jina Reader (article full-text extraction)
   └── Manual entry (Aaron → Notion)
 ```
@@ -243,1212 +301,627 @@ External Inputs:
 
 ```
 RSS Feeds ──→ ┐
-Slack Rants ──→├──→ [WF-1: Ingest] ──→ Feed Items DB ──→ [AI Triage]
-Manual Ideas ─→┘                              │
-                                              ▼
-                                    Content Creation DB
-                                    (Status: "Idea")
-                                              │
-                                    Aaron promotes to "Backlog"
-                                              │
-                                              ▼
-                            [WF-2: Draft Generation]
-                            ├── Fetch source material (Jina, Perplexity)
-                            ├── Load brand context (Writing Guide, Style Research)
-                            ├── Claude generates draft
-                            └── Write draft to Notion page body
-                                              │
-                                              ▼
-                            [WF-3: Evaluation]
-                            ├── Read draft from Notion
-                            ├── Claude scores against rubric
-                            ├── Write 7 scores + composite to properties
-                            └── Advance status if passing
-                                              │
-                                    ┌─────────┴─────────┐
-                                    ▼                   ▼
-                            Status: "Pre Review"  Status: "Draft"
-                            (scores pass)         (scores fail)
-                                    │                   │
-                            Aaron reviews         Feedback loop
-                                    │             (US-4 revision)
-                                    ▼
-                            Status: "Publishable"
-                                    │
-                        ┌───────────┤
-                        ▼           ▼
-                [WF-5: Image] [WF-4: Ghost Publish]
-                        │           │
-                        ▼           ▼
-                Google Drive    Ghost CMS draft
-                + Notion img    at blog.t-0.co
-                                    │
-                            Aaron publishes in Ghost
-                                    │
-                                    ▼
-                            Status: "Published"
-                            (URL + date written back)
+Slack Rants ──→├──→ [WF-2: Ingest] ──→ Notes DB ──→ [AI Triage]
+Manual Ideas ─→┘                           │
+                                           ▼
+                                 Content Creation DB
+                                 (Status: "Idea")
+                                           │
+                                 Aaron promotes to "Backlog"
+                                 (or processes existing entries)
+                                           │
+                                           ▼
+                                 Aaron presses "Run Pipeline"
+                                           │
+                              ┌────────────┼────────────┐
+                              ▼            ▼            ▼
+                         Idea/Backlog  In Revision  Publishable
+                              │            │            │
+                              ▼            ▼            ▼
+                         Research +    Feedback +   Ghost Pub +
+                         Draft + Eval  Re-draft    Image Gen
+                              │            │            │
+                              ▼            ▼            ▼
+                         "Pre Review"  "Pre Review"  "Published"
+                         or "Draft"    or "Draft"    Ghost post +
+                                                     Newsletter
+                                                         │
+                                                    [Future: Social
+                                                     Distribution]
 ```
 
 ### Technology Stack Decisions
 
 | Decision | Choice | Rationale |
 |----------|--------|-----------|
-| **Orchestration** | n8n at `n8n.t-0.co` | T-0's dedicated instance. Constitution mandates. Image gen workflow already here. |
-| **Content DB** | Notion Content Creation DB | Already exists, team uses it daily, mature status pipeline. |
-| **Publishing** | Ghost CMS at `blog.t-0.co` | Already running, has Admin API, handles newsletters. |
-| **Drafting model** | Claude (Anthropic) | Voice-sensitive work requires Claude's nuance with complex style guides. Perplexity lacks the fine-grained instruction following needed for T-0 voice. |
-| **Research model** | Perplexity `sonar-pro` | Web access, citations, proven in Josepha pipeline. |
-| **Triage model** | Perplexity `sonar-pro` | Same as Josepha — select relevant items from a list. |
-| **Evaluation model** | Claude (Anthropic) | Structured JSON output against a 7-dimension rubric requires strong instruction following. |
-| **Image generation** | Google Gemini | Already operational in Josepha + n8n.t-0.co. Style guide and reference image workflow proven. |
-| **Ghost content format** | HTML via `?source=html` | Simpler than building Lexical JSON. Sufficient for standard blog content. Upgrade to Lexical later if card features needed. |
-| **Slack ingestion** | n8n Slack node (conversations.history) | Direct API access gives full control. MCP Hub `slack-rant-augmentation` skill is an alternative but adds a dependency. |
-| **Article extraction** | Jina Reader API (`r.jina.ai`) | Proven in Josepha. Returns clean markdown from URLs. |
-| **Config storage** | This repo (`prompts/`, `config/`) | Git-versioned, diffable, the ratchet commits changes here. |
-
-### n8n Instance Access
-
-The T-0 n8n instance at `n8n.t-0.co` is separate from kokal-central's `automation.kokal.cloud`.
-
-**Current state**: Claude's `mcp__claude_ai_n8n__*` MCP tools connect to `automation.kokal.cloud`, NOT to `n8n.t-0.co`. The Josepha workflows run on `automation.kokal.cloud`.
-
-**Implication for this pipeline**: All workflows will be built on `n8n.t-0.co`. For Claude Code to interact with them (list, inspect, trigger), one of these is needed:
-1. Add a second n8n MCP server in `.mcp.json` pointing to `n8n.t-0.co` (preferred)
-2. Use MCP Hub `n8n` module reconfigured for `n8n.t-0.co`
-3. Use direct `curl` API calls with a `n8n.t-0.co` API key
-
-**Action needed before implementation**: Verify `n8n.t-0.co` is reachable, has an Admin API key, and has the required credentials (Notion, Perplexity, Anthropic, Gemini, Ghost, Slack, Jina, Google Drive).
+| **Orchestration** | n8n at `n8n.t-0.co` | T-0's dedicated instance. Constitution mandates. 29 active workflows. |
+| **LLM access** | OpenRouter → Claude Sonnet 4.6 | Single gateway to all models. AI Agent nodes with Chat Model sub-node. |
+| **Agent architecture** | Mostly deterministic, agents get 2-3 tools max | Cost-conscious. Only use agent autonomy where essential for quality. |
+| **Content DB** | Notion Content Creation DB (extended) | Already exists, team uses it daily, mature status pipeline. |
+| **Feed item storage** | Notes DB (existing) | Already has Slack fields, AI enrichment, Content Creation relation, Origin tracking. |
+| **Source registry** | Content Sources DB (new, in T-0 Main DB) | Follows Main DB pattern (page → child database). |
+| **Publishing** | Ghost CMS at `t-0.co` | Already running, Admin API, handles newsletters natively. |
+| **Ghost auth** | Dedicated "Content Pipeline" integration key | Stored in n8n credential management on `n8n.t-0.co`. |
+| **Research** | Perplexity as AI Agent tool | Agent decides when to call Perplexity for web-grounded research. |
+| **Article extraction** | Jina Reader as AI Agent tool | Agent decides when to deep-fetch article content. |
+| **Image generation** | Google Gemini (existing workflow, modular) | Already operational. Keep modular for reuse across projects. |
+| **Content format** | HTML via `?source=html` | Ghost converts to Lexical internally. Simpler than building Lexical JSON. |
+| **Config source** | Notion wiki pages (brand context) + this repo (prompts, style params) | Brand guides from Notion at runtime; repo files version-controlled for ratchet. |
+| **Prompt language** | English system prompts → German output | LLMs follow English instructions more consistently. Output is always German unless explicitly switched to English path. |
+| **Monitoring** | n8n execution history | No separate Pipeline Runs DB. n8n's built-in execution logs suffice. |
+| **Newsletter** | Ghost native | Blog posts automatically sent to `default-newsletter` subscribers on publish. |
 
 ---
 
-## Pipeline Phases — Detailed Design
+## n8n Architecture Patterns
 
-### Phase 1: Source Ingestion
+### AI Agent Node Pattern
 
-**Trigger**: Weekly schedule (Sunday 8:00 CET) + manual webhook
-**n8n Workflow**: WF-1
-**Inputs**: Sources DB, Slack #tech-shit-talk
-**Outputs**: Feed Items DB entries, Content Creation DB "Idea" entries
+Every LLM call uses an **n8n AI Agent node** (`@n8n/n8n-nodes-langchain.agent`) with an **OpenRouter Chat Model** sub-node. This provides a consistent interface regardless of whether the step needs tools.
 
-#### 1a. RSS Feed Ingestion
-
-**Sources DB** (new Notion database — child of Content Production project page):
-
-| Property | Type | Purpose |
-|----------|------|---------|
-| Name | title | Source name (e.g., "Simon Willison") |
-| URL | url | Homepage URL |
-| RSS URL | url | RSS/Atom feed URL |
-| Type | select | `Blog`, `Newsletter`, `News`, `Research`, `Podcast` |
-| Language | select | `DE`, `EN` |
-| Region | select | `DACH`, `US`, `EU`, `Global` |
-| Status | status | `Active`, `Paused`, `Archived` |
-| Weight | number | 1-10 priority score for triage (higher = more likely selected) |
-| Last Fetched | date | Timestamp of last successful fetch |
-| Notes | rich_text | Why this source matters for T-0 |
-
-**Initial sources** (from blog-style-research.md + team reading list):
-
-| Source | RSS URL | Type | Weight |
-|--------|---------|------|--------|
-| Simon Willison | `https://simonwillison.net/atom/everything/` | Blog | 8 |
-| Beyond the Hype | `https://beyondthehype.dev/feed` | Blog | 7 |
-| Anthropic Blog | `https://www.anthropic.com/rss.xml` | Research | 9 |
-| Pragmatic Engineer | `https://blog.pragmaticengineer.com/rss/` | Newsletter | 6 |
-| t3n | `https://t3n.de/rss.xml` | News | 5 |
-| Import AI | `https://importai.substack.com/feed` | Newsletter | 7 |
-| Forte Labs | `https://fortelabs.com/feed/` | Blog | 4 |
-| Stratechery | `https://stratechery.com/feed/` | Newsletter | 6 |
-| Daring Fireball | `https://daringfireball.net/feeds/main` | Blog | 3 |
-| Intercom Blog | `https://www.intercom.com/blog/feed/` | Blog | 5 |
-
-**RSS fetch flow** (per source):
-
-1. HTTP GET `{rss_url}` with `Accept: application/rss+xml, application/atom+xml`
-2. Parse response (regex parser, Josepha pattern — handles RSS 2.0 `<item>` + Atom `<entry>`)
-3. Filter items to last 7 days (by `pubDate` or `published`)
-4. Extract per item: `title`, `url`, `published`, `summary` (strip HTML), `author`
-5. Dedup against Feed Items DB by URL
-
-**Feed Items DB** (new Notion database):
-
-| Property | Type | Purpose |
-|----------|------|---------|
-| Name | title | Article title |
-| URL | url | Article URL |
-| Source | relation → Sources DB | Which source this came from |
-| Published | date | Original publication date |
-| Fetched | date | When pipeline fetched it |
-| Summary | rich_text | RSS summary or AI-generated summary |
-| Status | status | `New`, `Triaged`, `Selected`, `Used`, `Skipped` |
-| Tags | multi_select | AI-assigned topic tags |
-| Content | relation → Content Creation DB | If this feed item became a content idea |
-| Full Text | rich_text | Jina-extracted full text (truncated to 6000 chars) |
-
-#### 1b. Slack #tech-shit-talk Ingestion
-
-**Mechanism**: n8n Slack node using `conversations.history` API
-
-**Flow**:
-1. Fetch messages from #tech-shit-talk for last 7 days
-2. Filter: only messages with >2 replies OR >3 reactions OR length >200 chars (skip "lol" and link-only posts)
-3. For threaded discussions: fetch thread replies via `conversations.replies`
-4. Extract: author, timestamp, full text (message + thread), any URLs shared
-5. Store as Feed Items DB entry with Type="Slack Rant", Source relation to a special "Slack #tech-shit-talk" source entry
-
-**Slack credentials needed on n8n.t-0.co**:
-- OAuth token with scopes: `channels:history`, `channels:read`, `groups:history` (if private channel)
-- Channel ID for #tech-shit-talk
-
-**Content extraction from shared URLs**: If a Slack message contains a URL, fetch the linked article via Jina Reader and store the full text alongside the rant. This gives the triage step both the rant's take AND the source material.
-
-#### 1c. AI Triage
-
-After ingestion, the triage step selects which feed items are most relevant for T-0 content.
-
-**Input**: All `New` feed items from the current week
-**Model**: Perplexity `sonar-pro`, temperature 0.2
-**Output**: 5-8 selected items advanced to `Selected` status
-
-**Triage prompt structure**:
 ```
-You are a content strategist for T-0, a German AI transformation agency.
-T-0's audience: German Mittelstand decision-makers exploring AI adoption.
-T-0's stance: Pragmatic, show-the-work, strong opinions, anti-hype.
-
-Here are this week's {n} articles/rants:
-
-{numbered list with: title, source, summary, source weight, tags}
-
-Select the 5-8 most relevant items for T-0 blog content. Prioritize:
-1. Topics where T-0 has direct experience or a strong opinion
-2. Items from higher-weighted sources
-3. German/European angles over US-only stories
-4. Practical implications over theoretical advances
-5. Slack rants (they contain T-0's authentic voice)
-
-Return a JSON array of selected item numbers: [1, 4, 7, ...]
+AI Agent node (per LLM step)
+├── Chat Model: OpenRouter (claude-sonnet-4-6)
+├── Tools: [0-3 tools, clearly scoped per step]
+├── Output Parser: Structured Output (when JSON output needed)
+└── Memory: None (single-shot tasks, not conversational)
 ```
 
-**Post-triage actions**:
-- Selected items: Status → `Selected`, deep-fetch full text via Jina Reader
-- For each selected item: Create a Content Creation DB entry with Status="Idea", link to feed item, auto-generated Pitch from the article summary + triage reasoning
-- Non-selected items: Status → `Skipped`
+**Cost-conscious agent design** (from Aaron's direction):
+- Large parts of the workflow are deterministic n8n nodes (Code, HTTP, IF, Switch)
+- AI Agent nodes are used only where LLM judgment is needed
+- Each agent gets **2-3 tools maximum** with a clearly scoped task
+- No free planning — the task is well-defined when it reaches the agent
+- The agent makes tactical decisions (which tool to use) but not strategic ones (what to do next)
+
+### Agent Nodes in the Pipeline
+
+| Step | Agent? | Tools | Why |
+|------|--------|-------|-----|
+| Research & enrichment | **Yes** | Jina Reader, Perplexity | Agent decides research strategy based on available sources |
+| Draft generation | **Yes** (0 tools) | None — just model + output format | Complex generation task requiring LLM, but no tool decisions |
+| Content type detection | No — Code node | — | Simple classification based on keywords/signals |
+| Evaluation | **Yes** (0 tools) | Output Parser only | LLM scoring with structured JSON output |
+| Triage | **Yes** (0 tools) | Output Parser only | LLM selection from list, structured output |
+| Image description | **Yes** (0 tools) | None | Simple generation, no tools needed |
+| Ratchet proposals | **Yes** | Perplexity | May need current context for proposals |
+
+### Fire-and-Forget Webhook Pattern
+
+All webhook-triggered workflows:
+1. Receive Notion automation payload
+2. **Immediately** respond with HTTP 200 via Respond to Webhook node
+3. Process asynchronously
+4. Write results back to Notion
+
+This prevents Notion automation timeouts (10s limit) and gives instant feedback to the user.
+
+### Notion Automation Payload
+
+Notion automations send: `{ source: {...}, data: { object: "page", id: "...", properties: { Name: { type: "title", ... }, ... } } }`. The first Code node in every webhook-triggered workflow must flatten this to extract `pageId` and properties.
 
 ---
 
-### Phase 2: Research & Enrichment
+## Workflow 1: Content Pipeline (Single-Button Trigger)
 
-**When**: Part of WF-2 (Draft Generation), triggered when a Content Creation entry moves to "Backlog"
-**Purpose**: Gather all source material needed for a high-quality draft
+**Webhook**: `POST https://n8n.t-0.co/webhook/t0-content-pipeline`
+**Trigger**: "Run Pipeline" button on Content Creation DB → Notion automation → webhook
+**Response mode**: `responseMode: "responseNode"` (fire-and-forget)
 
-**Steps**:
+### Node Flow
 
-1. **Fetch primary source** (if URL is set):
-   - Jina Reader: `GET https://r.jina.ai/{url}` → returns markdown, cap at 8000 chars
-   - Extract: key facts, quotes, statistics, author claims
+```
+Webhook Trigger (receives Notion automation payload)
+  │
+  ├──→ Respond to Webhook: { "status": "processing" }
+  │
+  ├──→ Code: Parse Payload
+  │     Extract: pageId, Status, Name, Pitch, URL, Due Date planned,
+  │     Content Type, Image, Author, Category Tags
+  │
+  ├──→ Switch: Route by Status
+  │
+  ╔══════════════════════════════════════════════════════════════╗
+  ║ BRANCH A: Status = "Idea" or "Backlog"                      ║
+  ║ Action: Research → Draft → Evaluate                         ║
+  ╚══════════════════════════════════════════════════════════════╝
+  │
+  ├──→ [PARALLEL: Gather Context]
+  │     │
+  │     ├── Sub-branch 1: Source Material
+  │     │   ├── HTTP: GET Notion — read Notes relation (linked notes)
+  │     │   ├── Code: Extract URLs, rant text, summaries from notes
+  │     │   └── IF: Primary URL set?
+  │     │       └── YES: (passed to Research Agent as context)
+  │     │
+  │     ├── Sub-branch 2: Brand Context
+  │     │   ├── HTTP: GET Notion /blocks/{writingGuidePageId}/children
+  │     │   ├── HTTP: GET Notion /blocks/{blogContentGuidePageId}/children
+  │     │   ├── HTTP: GET Notion /blocks/{blogStyleAnalysisPageId}/children
+  │     │   └── Code: Convert blocks to markdown text
+  │     │
+  │     └── Sub-branch 3: Pipeline Config
+  │         ├── HTTP: GET GitHub raw — prompts/draft-system-prompt.md
+  │         ├── HTTP: GET GitHub raw — config/style-params.yaml
+  │         └── Code: Parse YAML, assemble config object
+  │
+  ├──→ Code: Merge All Context
+  │     Combine: source material + brand context + style params + page properties
+  │     Build: research query from Name + Pitch + URL
+  │
+  ├──→ AI Agent: Research & Enrich
+  │     ├── Chat Model: OpenRouter (claude-sonnet-4-6, temp=0.4)
+  │     ├── Tool 1: Jina Reader (HTTP Request tool → r.jina.ai/{url})
+  │     ├── Tool 2: Perplexity (HTTP Request tool → api.perplexity.ai)
+  │     ├── System: "You are a research assistant for T-0. Given a topic,
+  │     │   gather relevant information. Use Jina to read specific URLs.
+  │     │   Use Perplexity for broader research. Focus on: German market
+  │     │   perspective, practical implications, counterarguments, statistics.
+  │     │   Return structured research with citations."
+  │     └── Output: Research bundle (markdown with citations)
+  │
+  ├──→ Code: Detect Content Type (if not set)
+  │     Rules:
+  │     - News event/announcement → Opinion / Analysis
+  │     - Specific tool/technique → Resource (Technical)
+  │     - Client project reference → Case Study
+  │     - Slack rant with strong opinion → Opinion / Speculation
+  │     - Comparison/framework → Resource (Explainer)
+  │
+  ├──→ Code: Assemble Draft Prompt
+  │     System prompt: brand context + style params + rules
+  │     User prompt: topic + research bundle + voice seeds + content type template
+  │
+  ├──→ AI Agent: Generate Draft
+  │     ├── Chat Model: OpenRouter (claude-sonnet-4-6, temp=0.7)
+  │     ├── Tools: None
+  │     ├── System: {assembled system prompt with full brand context}
+  │     ├── User: {assembled user prompt with topic + research + voice seeds}
+  │     └── Output: Full blog post draft in markdown
+  │
+  ├──→ Code: Parse Draft
+  │     Extract: META comment (content_type, word_count, opening/closing patterns)
+  │     Clean: markdown formatting
+  │
+  ├──→ Code: Convert Markdown to Notion Blocks
+  │     Josepha converter: h1-h3, paragraphs, bullets, numbered lists,
+  │     blockquotes, dividers, bold/italic/code/links, code blocks, callouts
+  │     Batch into groups of 100 (Notion API limit)
+  │
+  ├──→ HTTP: PATCH Notion /pages/{pageId}
+  │     Set: Content Type (if auto-detected), Pipeline Version (git hash),
+  │     Status → "Draft"
+  │
+  ├──→ HTTP: PATCH Notion /blocks/{pageId}/children (batched)
+  │     Append draft blocks to page body
+  │
+  ├──→ [EVALUATION — inline, not a separate workflow call]
+  │
+  ├──→ Code: Extract draft text from generated blocks (pass-through, no re-read)
+  │
+  ├──→ HTTP: GET GitHub raw — docs/sources/content-evaluation-guide.md
+  │
+  ├──→ Code: Assemble Evaluation Prompt
+  │     Include: full rubric + brand voice reference + draft text
+  │
+  ├──→ AI Agent: Evaluate Draft
+  │     ├── Chat Model: OpenRouter (claude-sonnet-4-6, temp=0.2)
+  │     ├── Tools: None
+  │     ├── Output Parser: Structured Output (JSON schema)
+  │     ├── System: "You are a strict content evaluator for T-0. Score
+  │     │   against the Content Evaluation Guide. Be strict — this rubric
+  │     │   prevents generic AI consultancy content from being published."
+  │     └── Output JSON schema:
+  │         {
+  │           "clarity": { "score": 1-5, "feedback": "..." },
+  │           "structure": { "score": 1-5, "feedback": "..." },
+  │           "accuracy": { "score": 1-5, "feedback": "..." },
+  │           "credibility": { "score": 1-5, "feedback": "..." },
+  │           "engagement": { "score": 1-5, "feedback": "..." },
+  │           "voice": { "score": 1-5, "feedback": "..." },
+  │           "actionability": { "score": 1-5, "feedback": "..." },
+  │           "composite": <weighted total>,
+  │           "quality_tier": "Excellent|Good|Acceptable|Below Standard|Poor",
+  │           "top_strength": "...",
+  │           "primary_weakness": "...",
+  │           "voice_assessment": "..."
+  │         }
+  │
+  ├──→ Code: Apply Gate Rules
+  │     composite ≥ 28 AND all dimensions ≥ 3 AND voice ≥ 4 → "Pre Review"
+  │     voice < 4 → blocked (constitutional)
+  │     any dimension < 3 → blocked
+  │     else → stays "Draft"
+  │
+  ├──→ HTTP: PATCH Notion /pages/{pageId}
+  │     Write: all 7 scores, Composite Score, Quality Tier, Evaluation Notes,
+  │     Evaluated At, Status (conditional advancement)
+  │
+  ├──→ HTTP: PATCH Notion /blocks/{pageId}/children
+  │     Append: Callout block with evaluation summary + per-dimension feedback
+  │
+  └──→ HTTP: POST Notion /v1/comments
+        If passing: "✅ Draft evaluated: {composite}/40 ({tier}). Ready for review."
+        If blocked: "⚠️ Below threshold. {reason}. Composite: {score}/40"
 
-2. **Fetch related sources** (from Related Content relations and Feed Items):
-   - For each related feed item: read Full Text from Notion property
-   - For each related content entry: read pitch and description
+  ╔══════════════════════════════════════════════════════════════╗
+  ║ BRANCH B: Status = "In Revision"                            ║
+  ║ Action: Read feedback → Re-draft → Re-evaluate              ║
+  ╚══════════════════════════════════════════════════════════════╝
+  │
+  ├──→ HTTP: GET Notion /v1/comments (filter: page_id = {pageId})
+  │     Extract: Aaron's feedback comments (most recent)
+  │
+  ├──→ HTTP: GET Notion /blocks/{pageId}/children (paginated)
+  │     Read: current draft content
+  │
+  ├──→ Code: Preserve Previous Version
+  │     Wrap current draft blocks in a toggle: "▸ Previous Version (v{n})"
+  │
+  ├──→ HTTP: PATCH Notion /blocks/{pageId}/children
+  │     Replace: draft area with toggle block containing old version
+  │
+  ├──→ [Same context gathering as Branch A: brand context + pipeline config]
+  │
+  ├──→ Code: Assemble Revision Prompt
+  │     Include: original research + Aaron's feedback + previous draft
+  │     Instruction: "Incorporate this feedback while maintaining T-0 voice.
+  │     The reviewer specifically said: {feedback_text}"
+  │
+  ├──→ AI Agent: Re-generate Draft (same config as Branch A)
+  │
+  ├──→ [Same write-to-Notion + evaluation flow as Branch A]
+  │
+  └──→ End
 
-3. **Supplementary research** (via Perplexity):
-   - Prompt Perplexity `sonar-pro` with the topic + context gathered so far
-   - Ask for: recent developments, German market perspective, counterarguments, statistics
-   - Temperature: 0.3, max_tokens: 3000
+  ╔══════════════════════════════════════════════════════════════╗
+  ║ BRANCH C: Status = "Publishable"                            ║
+  ║ Action: Ghost publication + Image generation                 ║
+  ╚══════════════════════════════════════════════════════════════╝
+  │
+  ├──→ HTTP: GET Notion /pages/{pageId} + /blocks/{pageId}/children
+  │     Fetch: full page properties + body blocks (paginated)
+  │
+  ├──→ [PARALLEL]
+  │     ├── Code: Convert Notion blocks to HTML
+  │     │   h1→<h1>, h2→<h2>, h3→<h3>, paragraph→<p>,
+  │     │   bulleted_list_item→<ul><li>, numbered_list_item→<ol><li>,
+  │     │   quote→<blockquote>, code→<pre><code>, divider→<hr>,
+  │     │   image→<img>, bold→<strong>, italic→<em>, link→<a>,
+  │     │   strikethrough→<s>, inline code→<code>
+  │     │
+  │     ├── Code: Generate Ghost JWT
+  │     │   const [id, secret] = apiKey.split(':');
+  │     │   const token = jwt.sign({}, Buffer.from(secret, 'hex'),
+  │     │     { keyid: id, algorithm: 'HS256', expiresIn: '5m',
+  │     │       audience: '/admin/' });
+  │     │
+  │     └── IF: Image property set?
+  │         ├── YES: HTTP: Download image from Google Drive URL
+  │         └── NO: Skip (or trigger WF-3 image gen)
+  │
+  ├──→ IF: Image downloaded?
+  │     └── YES: HTTP: POST https://t-0.co/ghost/api/admin/images/upload/
+  │              (multipart/form-data, image binary)
+  │
+  ├──→ Code: Map Notion Properties to Ghost Fields
+  │     title: Title property (fallback: Name)
+  │     html: converted HTML
+  │     tags: Category Tags → Ghost slugs + "#pipeline-generated" internal tag
+  │     authors: Author email → Ghost author
+  │     custom_excerpt: Pitch (first 300 chars)
+  │     feature_image: uploaded image URL (if available)
+  │     meta_title: Title (max 60 chars)
+  │     meta_description: Pitch (max 155 chars)
+  │     newsletter: { slug: "default-newsletter" }
+  │
+  ├──→ HTTP: POST https://t-0.co/ghost/api/admin/posts/?source=html
+  │     Create Ghost post as draft
+  │
+  ├──→ IF: Due Date planned is set?
+  │     ├── YES: HTTP: PUT https://t-0.co/ghost/api/admin/posts/{id}/
+  │     │        Set: status="scheduled", published_at="{dueDate}T09:00:00+02:00"
+  │     └── NO: Leave as draft
+  │
+  ├──→ HTTP: PATCH Notion /pages/{pageId}
+  │     URL = Ghost post URL
+  │     Ghost ID = Ghost post ID
+  │     Publication Date actual = now (or scheduled date)
+  │     Status = "Published"
+  │
+  ├──→ IF: Image property empty?
+  │     └── YES: HTTP: POST n8n.t-0.co/webhook/t0-image-gen (trigger WF-3)
+  │
+  └──→ HTTP: POST Notion /v1/comments
+        "Published to Ghost: {url}. Status: {draft|scheduled for date}."
+```
 
-4. **Load Slack rant context** (if feed item is a rant or has linked rants):
-   - Include the original rant text as "voice seed"
-   - Extract: strong opinions, specific phrasings, dismissals, comparisons
+### Credentials Required on n8n.t-0.co
 
-5. **Package research bundle**:
-   - Primary source text
-   - Supplementary research with citations
-   - Slack rant voice seeds (if any)
-   - Topic metadata (title, pitch, category, target audience)
-
-This research bundle becomes the input to Phase 3 (Draft Generation).
+| Credential | Type | Purpose |
+|------------|------|---------|
+| OpenRouter | `openRouterApi` | All LLM calls (Claude Sonnet 4.6 via OpenRouter) |
+| Notion | `notionApi` or `httpHeaderAuth` | Content Creation DB, Notes DB, wiki pages |
+| Ghost "Content Pipeline" | Custom (stored as generic credential) | Ghost Admin API JWT generation |
+| Slack | Bot OAuth token | #tech-shit-talk channel history |
+| Jina | `httpHeaderAuth` (Bearer) | Article full-text extraction |
+| Perplexity | `httpHeaderAuth` (Bearer) | Web-grounded research |
+| Google Drive (T-0) | `googleOAuth2Api` (`aaron@t-0.co`) | Image upload/download |
+| Gemini | API key | Image generation |
 
 ---
 
-### Phase 3: Draft Generation
+## Workflow 2: Source Ingestion (Scheduled)
 
-**When**: Part of WF-2, after research is complete
-**Model**: Claude (Anthropic) — `claude-sonnet-4-6` for standard drafts, `claude-opus-4-6` for high-priority or complex topics
-**Output**: Full blog post draft written to Notion page body
+**Schedule**: RSS weekly (Sunday 8:00 CET), Slack every 6 hours
+**Webhook**: `POST https://n8n.t-0.co/webhook/t0-source-ingestion` (manual trigger)
 
-#### Brand Context Loading
-
-Before generating any draft, the pipeline loads the complete brand context. This is NOT hardcoded in prompts — it's fetched from Notion at generation time (Josepha pattern), ensuring the latest guide versions are always used.
-
-**Documents loaded** (from Notion wiki pages):
-1. Brand Writing Guide (page `2d1c0fdf-942d-810d-8fda-cf181d93bf46`) — voice, tone, terminology
-2. Blog Content Guide (page `2d1c0fdf-942d-81cf-bd59-f54a251a1571`) — structural templates
-3. Blog Style Analysis (page `2d7c0fdf-942d-813e-a679-e55b56cea58b`) — pattern library
-
-**Documents loaded** (from this repo, committed files):
-4. `docs/sources/blog-style-research.md` — expanded 14-source craft analysis
-5. `prompts/draft-system-prompt.md` — the master drafting prompt (ratchet-tunable)
-6. `config/style-params.yaml` — style parameters (ratchet-tunable)
-
-#### Draft Generation Prompt Architecture
-
-The draft prompt is assembled from multiple components:
-
-```
-┌─────────────────────────────────────────────┐
-│ SYSTEM PROMPT (from prompts/draft-system-prompt.md) │
-│                                             │
-│ Role: Du schreibst Content für T-0...       │
-│ Voice rules: (from Brand Writing Guide)     │
-│ Structure rules: (from Blog Content Guide)  │
-│ Style inspiration: (from Blog Style Research)│
-│ Craft patterns: (from Blog Style Analysis)  │
-│                                             │
-│ STYLE PARAMETERS (from config/style-params.yaml) │
-│ opinion_strength: 0.8  (0-1 scale)         │
-│ technical_depth: 0.6   (0-1 scale)         │
-│ personal_anecdote: true                      │
-│ progressive_disclosure: true                 │
-│ show_the_work: true                          │
-│ german_first: true                           │
-│ max_anglicisms: 5                            │
-│ target_word_count: 1200                      │
-│ content_type: auto-detect                    │
-└─────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────┐
-│ USER PROMPT (assembled per-draft)           │
-│                                             │
-│ Topic: {name}                                │
-│ Pitch: {pitch}                               │
-│ Content Type: {auto-detected or manual}      │
-│ Target Audience: {from Target Audience Tags}│
-│                                             │
-│ SOURCE MATERIAL:                             │
-│ {primary source text}                        │
-│ {supplementary research with citations}      │
-│                                             │
-│ VOICE SEEDS (if available):                  │
-│ {Slack rant text}                            │
-│ Key arguments: {extracted arguments}         │
-│ Strong phrasings to incorporate: {...}       │
-│                                             │
-│ PREVIOUS FEEDBACK (if revision):             │
-│ {Aaron's comments from Notion}               │
-│                                             │
-│ Generate a complete blog post draft.         │
-│ Follow the structural template for           │
-│ {content_type} from the Blog Content Guide.  │
-│ Open with pattern {1-4} from the Writing     │
-│ Guide. Close with pattern {1-5}.             │
-│ All sources used in research must appear as  │
-│ embedded hyperlinks in the text.             │
-└─────────────────────────────────────────────┘
-```
-
-#### Content Type Auto-Detection
-
-If the Content Creation entry doesn't specify a content type, the pipeline infers it:
-
-| Signal | Inferred Type |
-|--------|---------------|
-| Topic is a news event/announcement | Opinion / Analysis |
-| Topic has a specific tool/technique | Resource (Technical) |
-| Topic references a client project | Case Study |
-| Topic is a Slack rant with strong opinion | Opinion / Speculation |
-| Topic is a comparison/framework | Resource (Explainer) |
-
-The inferred type determines which structural template from the Blog Content Guide is used.
-
-#### Draft Output Format
-
-Claude's response is structured markdown:
-
-```markdown
-<!-- META
-content_type: Opinion
-target_word_count: 1400
-opening_pattern: News Hook
-closing_pattern: Open Questions
--->
-
-# {Title}
-
-{Opening paragraph — pattern-specific}
-
-{Promise/thesis — within first 150 words}
-
-## {Section 1}
-
-{Body content with progressive disclosure}
-
-### Technisch: {optional deep-dive section}
-
-{Technical detail, clearly marked}
-
-## {Section 2}
-
-{More body content}
-
-> {Blockquote if citing specific source}
-
-## {Closing section}
-
-{Closing paragraph — pattern-specific}
-
-{Soft CTA if appropriate}
-
-<!-- SOURCES
-- https://source1.com (referenced in paragraph 3)
-- https://source2.com (referenced in section 2)
--->
-```
-
-#### Writing Draft to Notion
-
-The markdown output is converted to Notion blocks using a markdown-to-blocks converter (Josepha pattern, handles: h1-h3, paragraphs, bullets, numbered lists, blockquotes, dividers, bold/italic/code/links, code blocks).
-
-Blocks are appended to the Content Creation page body in batches of 100 (Notion API limit).
-
-The META comment is parsed and used to set properties:
-- Content type → Category Tags
-- Word count → stored for evaluation
-
----
-
-### Phase 4: Automated Evaluation
-
-**When**: Auto-triggered after draft generation (WF-3, chained from WF-2) or manually triggered via webhook
-**Model**: Claude `claude-sonnet-4-6` (strong instruction following for structured JSON)
-**Output**: 7 dimension scores + composite + feedback written to Notion properties
-
-#### Evaluation Rubric (Immutable)
-
-From the Content Evaluation Guide (`docs/sources/content-evaluation-guide.md`):
-
-| Dimension | Weight | Max Score | What It Measures |
-|-----------|--------|-----------|------------------|
-| Clarity | 1.0× | 5 | Is it understandable? No jargon without explanation? |
-| Structure | 1.0× | 5 | Does it follow progressive disclosure? Scannable? |
-| Accuracy | 1.5× | 7.5 | Are facts correct? Sources cited? |
-| Credibility | 1.5× | 7.5 | Does it show the work? Earned confidence? |
-| Engagement | 1.0× | 5 | Does the opening hook? Does it hold attention? |
-| Voice | 1.0× | 5 | Does it sound like T-0? Strong opinions? Du-Form? |
-| Actionability | 1.0× | 5 | Does the reader know what to do next? |
-| **Composite** | — | **40** | Weighted sum |
-
-**Quality tiers**: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)
-
-**Gate rules**:
-- Composite ≥ 28 AND all dimensions ≥ 3 AND Voice ≥ 4 → advance to "Pre Review"
-- Voice < 4 → **blocked** regardless of composite (constitutional principle)
-- Any dimension < 3 → blocked, specific feedback required
-- Composite < 28 → stay at "Draft"
-
-#### Evaluation Prompt
-
-```
-You are a content evaluator for T-0. Score the following draft against
-the Content Evaluation Guide rubric. Be strict — this rubric exists to
-prevent generic AI consultancy content from being published.
-
-RUBRIC:
-{full Content Evaluation Guide text}
-
-BRAND VOICE REFERENCE:
-{Brand Writing Guide voice principles section}
-
-DRAFT TO EVALUATE:
-{full draft text}
-
-Return a JSON object exactly matching this schema:
-{
-  "clarity": { "score": <1-5>, "feedback": "<specific feedback>" },
-  "structure": { "score": <1-5>, "feedback": "<specific feedback>" },
-  "accuracy": { "score": <1-5>, "feedback": "<specific feedback>" },
-  "credibility": { "score": <1-5>, "feedback": "<specific feedback>" },
-  "engagement": { "score": <1-5>, "feedback": "<specific feedback>" },
-  "voice": { "score": <1-5>, "feedback": "<specific feedback>" },
-  "actionability": { "score": <1-5>, "feedback": "<specific feedback>" },
-  "composite": <weighted total>,
-  "quality_tier": "<Excellent|Good|Acceptable|Below Standard|Poor>",
-  "top_strength": "<what this draft does best>",
-  "primary_weakness": "<the single most impactful improvement>",
-  "voice_assessment": "<specific assessment of T-0 voice alignment>"
-}
-```
-
-#### Writing Scores to Notion
-
-The Content Creation DB needs these **new properties** (to be added):
-
-| Property | Type | Purpose |
-|----------|------|---------|
-| Clarity Score | number | Dimension score (1-5) |
-| Structure Score | number | Dimension score (1-5) |
-| Accuracy Score | number | Dimension score (1-5) |
-| Credibility Score | number | Dimension score (1-5) |
-| Engagement Score | number | Dimension score (1-5) |
-| Voice Score | number | Dimension score (1-5) |
-| Actionability Score | number | Dimension score (1-5) |
-| Composite Score | number | Weighted total (max 40) |
-| Quality Tier | select | Excellent, Good, Acceptable, Below Standard, Poor |
-| Evaluation Notes | rich_text | Top strength + primary weakness + voice assessment |
-| Pipeline Version | rich_text | Git hash of the prompt/config used (for ratchet tracking) |
-| Evaluated At | date | Timestamp of last evaluation |
-
-After writing scores, the workflow checks gate rules and advances Status accordingly.
-
-If advancing to "Pre Review," a Notion comment is created:
-```
-✅ Draft evaluated: {composite}/40 ({quality_tier})
-Strongest: {top_strength}
-To improve: {primary_weakness}
-Voice: {voice_assessment}
-```
-
-If blocked, a Notion comment is created:
-```
-⚠️ Draft below threshold. {specific reason}
-Composite: {composite}/40 | Voice: {voice_score}/5
-Key feedback: {primary_weakness}
-```
-
----
-
-### Phase 5: Human Review
-
-**When**: Aaron opens a "Pre Review" entry in Notion
-**Not automated** — this is the human gate (constitutional principle)
-
-**What Aaron sees in Notion**:
-- The draft text in the page body
-- All 7 dimension scores as number properties (visible in DB view)
-- Composite score and quality tier
-- Evaluation notes with specific feedback
-- Source material links (Feed Items, Related Content)
-- Pipeline version (which prompts were used)
-
-**Aaron's actions**:
-
-| Action | Status Change | Pipeline Response |
-|--------|---------------|-------------------|
-| Approve | → "Publishable" | Triggers WF-4 (Ghost) + WF-5 (Image) |
-| Request revision | → "In Revision" + comment | WF-2 re-runs with Aaron's feedback as input |
-| Reject | → "Idea" or archive | No pipeline action |
-| Edit directly | Stays "Pre Review" | Aaron can edit the draft text manually |
-
-**Revision handling**: When Aaron moves status to "In Revision" and adds a comment, the pipeline:
-1. Reads all recent comments on the page
-2. Preserves the current draft in a toggle block: "▸ Previous Version (v{n})"
-3. Regenerates using original research bundle + Aaron's feedback
-4. Re-evaluates the new draft
-5. If passing, advances to "Pre Review" again
-
----
-
-### Phase 6: Publication to Ghost
-
-**When**: Status changes to "Publishable"
-**n8n Workflow**: WF-4
-**Ghost instance**: `blog.t-0.co`
-
-#### Content Conversion
-
-Notion blocks → HTML conversion:
-
-| Notion Block | HTML Output |
-|-------------|-------------|
-| heading_1 | `<h1>` |
-| heading_2 | `<h2>` |
-| heading_3 | `<h3>` |
-| paragraph | `<p>` |
-| bulleted_list_item | `<ul><li>` |
-| numbered_list_item | `<ol><li>` |
-| quote | `<blockquote>` |
-| code | `<pre><code>` |
-| divider | `<hr>` |
-| image | `<img src="..." alt="...">` |
-| toggle (heading) | `<details><summary>` (or skip — Ghost doesn't support natively) |
-| callout | `<div class="kg-callout-card">` (or HTML card in Lexical) |
-
-Rich text annotations:
-| Annotation | HTML |
-|-----------|------|
-| bold | `<strong>` |
-| italic | `<em>` |
-| code | `<code>` |
-| link | `<a href="...">` |
-| strikethrough | `<s>` |
-
-#### Ghost API Call Sequence
-
-**Step 1: Upload featured image** (if Image property is set)
-
-```
-POST https://blog.t-0.co/ghost/api/admin/images/upload/
-Content-Type: multipart/form-data
-
-file: {image binary downloaded from Google Drive URL}
-purpose: image
-ref: {content-creation-entry-id}
-```
-
-Response: `{ "images": [{ "url": "https://blog.t-0.co/content/images/..." }] }`
-
-**Step 2: Create Ghost draft post**
-
-```
-POST https://blog.t-0.co/ghost/api/admin/posts/?source=html
-Authorization: Ghost {JWT}
-Content-Type: application/json
-
-{
-  "posts": [{
-    "title": "{Title property, or Name if Title empty}",
-    "html": "{converted HTML from Notion blocks}",
-    "status": "draft",
-    "tags": ["{mapped from Category Tags}"],
-    "authors": ["{email of Author}"],
-    "feature_image": "{uploaded image URL}",
-    "feature_image_alt": "{auto-generated alt text}",
-    "custom_excerpt": "{Pitch property, first 300 chars}",
-    "meta_title": "{Title, max 60 chars}",
-    "meta_description": "{Pitch, max 155 chars}",
-    "og_title": "{Title}",
-    "og_description": "{Pitch, max 200 chars}"
-  }]
-}
-```
-
-**Step 3: Handle scheduling** (if Due Date planned is set)
-
-```
-PUT https://blog.t-0.co/ghost/api/admin/posts/{id}/?source=html
-Authorization: Ghost {JWT}
-
-{
-  "posts": [{
-    "status": "scheduled",
-    "published_at": "{Due Date planned}T09:00:00.000+01:00",
-    "updated_at": "{current timestamp}"
-  }]
-}
-```
-
-**Step 4: Update Notion**
-
-- Write Ghost post URL to URL property
-- Write Ghost post ID to a new `Ghost ID` property (rich_text)
-- Set Publication Date actual to now (or scheduled date)
-- Advance Status to "Published"
-
-#### Ghost Tag Mapping
-
-| Content Creation Category Tag | Ghost Tag |
-|-------------------------------|-----------|
-| AI Agents | `ai-agents` |
-| MCP | `mcp` |
-| Automation | `automation` |
-| Opinion | `opinion` |
-| Technical | `technical` |
-| Case Study | `case-study` |
-| Mittelstand | `mittelstand` |
-| (any new tag) | auto-created in Ghost |
-
-Internal tags (not public): `#pipeline-generated`, `#v{pipeline-version}`
-
-#### Ghost Authentication
-
-Ghost Admin API key (format: `{id}:{secret}`) stored as n8n credential on `n8n.t-0.co`.
-
-JWT generation (per Ghost docs):
-```javascript
-const jwt = require('jsonwebtoken');
-const [id, secret] = apiKey.split(':');
-const token = jwt.sign({}, Buffer.from(secret, 'hex'), {
-  keyid: id,
-  algorithm: 'HS256',
-  expiresIn: '5m',
-  audience: '/admin/'
-});
-```
-
-n8n handles this via a Code node that generates the JWT before each Ghost API call.
-
----
-
-### Phase 7: Image Generation
-
-**When**: Triggered alongside Ghost publication (WF-5), or manually via "Run Image Gen" button
-**Based on**: Josepha image generation workflow (adapted for T-0 style)
-
-#### Flow
-
-1. **Input**: Content Creation entry with draft text + optional Image Gen Description
-2. **Auto-generate description** (if Image Gen Description is empty):
-   - Claude summarizes the post topic into a 50-word image scene description
-3. **Fetch T-0 illustration style guide** from Notion wiki page
-4. **Enhance prompt** via Perplexity `sonar` (temp 0.3):
-   - Input: image description + style guide
-   - Output: detailed 100-300 word image prompt + kebab-case filename
-5. **Reference image selection** (optional):
-   - List images in T-0 reference folder on Google Drive
-   - AI selects best-matching reference
-   - Download as binary
-6. **Generate image** via Gemini API:
-   - Model: `gemini-2.0-flash-exp` (or latest imagen model)
-   - Input: enhanced prompt + style guide text + optional reference image
-   - Aspect ratio: 16:9 for blog featured images (default), configurable
-7. **Upload to Google Drive** → T-0 Generated Images folder
-8. **Set public sharing** permission
-9. **Write back to Notion**: Image property + embedded image block
-10. **Upload to Ghost** (if Ghost post exists): via Ghost image upload API
-
----
-
-### Phase 8: Self-Improvement Ratchet
-
-**When**: Monthly schedule (1st of month) + manual trigger
-**n8n Workflow**: WF-6
-**Purpose**: Analyze what's working, propose and test prompt/parameter changes
-
-#### Ratchet Analysis Flow
-
-1. **Gather data**:
-   - Query Content Creation DB for all entries with Composite Score ≥ 1 from last 30 days
-   - Extract: scores per dimension, content type, pipeline version, source material type
-
-2. **Compute trends**:
-   - Average composite score this month vs. previous months
-   - Per-dimension averages and trends
-   - Best/worst performing content types
-   - Correlation between source type (RSS vs. Slack rant) and scores
-
-3. **Identify improvement targets**:
-   - Dimensions consistently below 4 → prompt adjustment needed
-   - Voice scores trending down → style parameter review
-   - Specific content types underperforming → template adjustment
-
-4. **Generate improvement proposals** (Claude):
-   - Input: trend data + current prompts + current style params
-   - Output: 1-3 specific, testable changes (e.g., "Add a requirement to include at least one personal experience in opinion pieces")
-
-5. **A/B test proposals** (offline):
-   - Select 3-5 past topics (diverse content types)
-   - Regenerate drafts with proposed changes
-   - Evaluate with same rubric
-   - Compare scores: proposed vs. original
-
-6. **Accept or reject**:
-   - Accept if: average composite improves ≥1 point AND no dimension drops >0.5
-   - Reject otherwise
-   - Accepted changes: committed to this repo with ratchet metadata
-
-7. **Report**:
-   - Create Notion page in Pipeline Runs DB (new) with:
-     - Date range analyzed
-     - Score trends (table)
-     - Proposals tested
-     - Accept/reject decisions with scores
-     - Applied changes (with git commit hash)
-
-#### Pipeline Runs DB (new Notion database)
-
-| Property | Type | Purpose |
-|----------|------|---------|
-| Name | title | "Ratchet Run 2026-04-01" or "Pipeline Run WF-2 #{id}" |
-| Type | select | `Ratchet Analysis`, `Draft Generation`, `Evaluation`, `Publication`, `Ingestion` |
-| Date | date | Run timestamp |
-| Status | status | `Running`, `Success`, `Failed`, `Partial` |
-| Entries Processed | number | How many content entries were processed |
-| Avg Composite | number | Average composite score (for ratchet runs) |
-| Changes Applied | rich_text | Description of any config changes |
-| Git Commit | url | Link to the commit with changes (for ratchet runs) |
-| Error Log | rich_text | Error details (for failed runs) |
-| Duration | number | Execution time in seconds |
-
----
-
-## n8n Workflow Specifications
-
-### WF-1: Source Ingestion
-
-**Webhook**: `POST https://n8n.t-0.co/webhook/t0-source-ingestion`
-**Schedule**: Weekly, Sunday 8:00 CET
-**Estimated nodes**: 35-45
+### Node Flow
 
 ```
 Schedule Trigger / Webhook Trigger
   │
-  ├──→ Query Sources DB (HTTP: POST Notion /databases/{sourcesDbId}/query, filter Status=Active)
-  │      ├── Extract RSS sources (Code: filter where RSS URL is set)
-  │      └── Extract Slack config (Code: get #tech-shit-talk channel ID)
+  ├──→ HTTP: POST Notion /databases/{contentSourcesDbId}/query
+  │     Filter: Status = "Active"
+  │     Extract: RSS sources (where RSS URL is set) + Slack config
   │
-  ├──→ [PARALLEL BRANCH A: RSS Feeds]
-  │      ├── Fan Out RSS Sources (Code: split array)
-  │      ├── Fetch RSS Feed (HTTP: GET {rssUrl})
-  │      ├── Parse RSS Feed (Code: regex parser for RSS 2.0 + Atom)
-  │      ├── Filter to Last 7 Days (Code: date comparison)
-  │      ├── Aggregate All Items (Aggregate)
-  │      └── Package RSS Results (Code)
+  ╔══════════════════════════════════════════════════════════════╗
+  ║ PARALLEL BRANCH A: RSS Feeds                                ║
+  ╚══════════════════════════════════════════════════════════════╝
   │
-  ├──→ [PARALLEL BRANCH B: Slack]
-  │      ├── Fetch Channel History (HTTP: GET Slack conversations.history, oldest=7d ago)
-  │      ├── Filter Meaningful Messages (Code: >2 replies OR >3 reactions OR >200 chars)
-  │      ├── Fetch Threads (HTTP: GET conversations.replies, for each qualifying message)
-  │      ├── Extract URLs from Messages (Code: regex URL extraction)
-  │      ├── Fetch URL Content (HTTP: GET r.jina.ai/{url}, for each URL found)
-  │      ├── Package Slack Results (Code)
-  │      └── Aggregate Slack Items (Aggregate)
+  ├──→ Code: Fan Out RSS Sources (split array)
   │
-  ├──→ Merge All Items (Code: combine RSS + Slack into unified format)
+  ├──→ HTTP: GET {rssUrl} per source
+  │     Accept: application/rss+xml, application/atom+xml
   │
-  ├──→ Dedup Against Existing (HTTP: POST Notion query Feed Items DB, filter Fetched >= weekStart)
-  │      └── Filter New Only (Code: set-diff by URL)
+  ├──→ Code: Parse RSS/Atom feed
+  │     Regex parser (Josepha pattern): handles RSS 2.0 <item> + Atom <entry>
+  │     Filter: items from last 7 days (by pubDate/published)
+  │     Extract: title, url, published, summary (strip HTML), author
   │
-  ├──→ Store New Feed Items (loop)
-  │      ├── Create Feed Item Page (HTTP: POST Notion /pages)
-  │      └── Append Summary Blocks (HTTP: PATCH Notion /blocks/{pageId}/children)
+  ├──→ Aggregate: All RSS items into single array
   │
-  ├──→ AI Triage (conditional: only if new items exist)
-  │      ├── Build Triage Prompt (Code: numbered list with source weights)
-  │      ├── Call Perplexity (HTTP: POST /chat/completions, sonar-pro, temp=0.2)
-  │      ├── Parse Selection (Code: extract JSON array, fallback to top items by weight)
-  │      └── Update Feed Item Status (HTTP: PATCH Notion, Selected items)
+  ╔══════════════════════════════════════════════════════════════╗
+  ║ PARALLEL BRANCH B: Slack #tech-shit-talk                    ║
+  ╚══════════════════════════════════════════════════════════════╝
   │
-  ├──→ Deep Fetch Selected Items
-  │      ├── Fan Out Selected (Code: split)
-  │      ├── Jina Deep Fetch (HTTP: GET r.jina.ai/{url}, 8000 char limit)
-  │      ├── Update Feed Item Full Text (HTTP: PATCH Notion)
-  │      └── Aggregate Deep Results
+  ├──→ HTTP: GET Slack conversations.history
+  │     channel={techShitTalkChannelId}, oldest={6h ago or 7d ago}
   │
-  ├──→ Create Content Ideas
-  │      ├── Build Idea Prompt (Code: for each selected item, generate pitch + angle)
-  │      ├── Call Perplexity (HTTP: POST, generate pitches for selected items)
-  │      ├── Parse Ideas (Code)
-  │      └── Create Content Creation Entries (HTTP: POST Notion /pages, Status=Idea)
+  ├──→ Code: Filter Meaningful Discussions
+  │     Rule: 2+ replies from 2+ different people
   │
-  └──→ Build Summary + Respond to Webhook
+  ├──→ HTTP: GET Slack conversations.replies (per qualifying thread)
+  │     Fetch full thread text + participants
+  │
+  ├──→ Code: Extract URLs from messages (regex)
+  │
+  ├──→ HTTP: GET r.jina.ai/{url} (for each URL found in messages)
+  │     Optional deep-fetch of shared article content
+  │
+  ├──→ Code: Package Slack items into unified format
+  │
+  ├──→ Aggregate: All Slack items
+  │
+  ╔══════════════════════════════════════════════════════════════╗
+  ║ MERGE + DEDUP + STORE                                       ║
+  ╚══════════════════════════════════════════════════════════════╝
+  │
+  ├──→ Code: Merge RSS + Slack into unified format
+  │     Fields: title, url, published, summary, source, origin, full_text
+  │
+  ├──→ HTTP: POST Notion /databases/{notesDbId}/query
+  │     Filter: Origin contains "rss-ingestion" OR "slack-auto-capture",
+  │     Time >= 7 days ago
+  │     Purpose: get existing items for dedup
+  │
+  ├──→ Code: Dedup by URL (set-diff against existing Notes DB entries)
+  │
+  ├──→ Code: Store New Items in Notes DB (loop)
+  │     For each new item:
+  │     ├── HTTP: POST Notion /pages
+  │     │   Properties:
+  │     │     Name = article title (or first 100 chars of Slack message)
+  │     │     URL = article URL (or Slack thread link)
+  │     │     Time = published date (RSS) or thread timestamp (Slack)
+  │     │     Origin = "rss-ingestion" or "slack-auto-capture"
+  │     │     Origin Description = source feed name
+  │     │     Status = "Backlog"
+  │     │     Source = relation to Content Sources DB entry
+  │     │     Description = RSS summary or Slack thread summary
+  │     │     (Slack-specific: thread_ts_slack, channel_id_slack, contributors_slack)
+  │     └── HTTP: PATCH Notion /blocks/{pageId}/children
+  │         Append: full text as paragraph blocks (if available)
+  │
+  ├──→ HTTP: PATCH Notion /pages/{sourcePageId}
+  │     Update: Last Fetched = now (for each processed source)
+  │
+  ╔══════════════════════════════════════════════════════════════╗
+  ║ AI TRIAGE (only if new items exist)                          ║
+  ╚══════════════════════════════════════════════════════════════╝
+  │
+  ├──→ Code: Build Triage Input
+  │     Numbered list with: title, source, summary, source weight, origin type
+  │
+  ├──→ AI Agent: Triage
+  │     ├── Chat Model: OpenRouter (claude-sonnet-4-6, temp=0.2)
+  │     ├── Tools: None
+  │     ├── Output Parser: Structured Output (JSON array of selected indices)
+  │     ├── System: "You are a content strategist for T-0, a German AI
+  │     │   transformation agency. T-0's audience: German Mittelstand
+  │     │   decision-makers. T-0's stance: pragmatic, show-the-work,
+  │     │   strong opinions, anti-hype."
+  │     └── User: "Select 5-8 most relevant items. Prioritize:
+  │           1. Topics where T-0 has direct experience
+  │           2. Higher-weighted sources
+  │           3. German/European angles
+  │           4. Practical implications over theory
+  │           5. Slack discussions (authentic voice material)
+  │           Return JSON array of selected item numbers."
+  │
+  ├──→ Code: Parse selection, update Notes DB status
+  │     Selected: Status → "Currently Relevant"
+  │     Not selected: Status → "Discarded"
+  │
+  ├──→ Code: Create Content Creation Entries for Selected Items
+  │     For each selected item:
+  │     ├── HTTP: POST Notion /pages (in Content Creation DB)
+  │     │   Name = article title or discussion topic
+  │     │   Status = "Idea"
+  │     │   Pitch = AI-generated from summary + triage reasoning
+  │     │   URL = source URL
+  │     │   Notes = relation to Notes DB entry
+  │     │   Source Type = "RSS" or "Slack Rant"
+  │     │   Category Tags = AI-suggested
+  │     └── HTTP: PATCH Notes DB entry
+  │         Content Creation = relation to new entry
+  │
+  └──→ End (no webhook response needed for scheduled runs)
 ```
-
-**Credentials required on n8n.t-0.co**:
-- `notionApi` or `httpHeaderAuth` (Notion integration token)
-- `perplexityApi` (Perplexity API key)
-- Slack OAuth token (Bot token with channel read permissions)
-- Jina API key (optional — free tier may suffice for read operations)
 
 ---
 
-### WF-2: Draft Generation Pipeline
+## Workflow 3: Image Generation (Modular)
 
-**Webhook**: `POST https://n8n.t-0.co/webhook/t0-draft-generation`
-**Trigger**: Notion automation on Status change to "Backlog" (fires webhook with page data)
-**Also triggerable**: Manually via webhook with `{ "pageId": "..." }`
-**Estimated nodes**: 25-35
-
-```
-Webhook Trigger
-  │
-  ├──→ Extract Page Data (Code: parse Notion automation payload, extract pageId, name, pitch, url, etc.)
-  │
-  ├──→ Acknowledge Webhook (Respond to Webhook: {"status":"accepted"})
-  │
-  ├──→ [PARALLEL: Gather Context]
-  │      ├── Fetch Source Material
-  │      │     ├── Read Feed Items relation (HTTP: GET Notion page properties)
-  │      │     ├── Jina Fetch Primary URL (HTTP: GET r.jina.ai/{url}, if URL set)
-  │      │     └── Read Related Content (HTTP: GET Notion, for each relation)
-  │      │
-  │      ├── Fetch Brand Context
-  │      │     ├── Fetch Writing Guide (HTTP: GET Notion /blocks/{writingGuidePageId}/children)
-  │      │     ├── Fetch Blog Content Guide (HTTP: GET Notion /blocks/{blogContentGuidePageId}/children)
-  │      │     └── Fetch Blog Style Analysis (HTTP: GET Notion /blocks/{blogStyleAnalysisPageId}/children)
-  │      │
-  │      └── Fetch Pipeline Config
-  │            ├── Read draft-system-prompt.md (from repo — loaded as n8n static data or fetched from GitHub raw)
-  │            ├── Read style-params.yaml (same)
-  │            └── Read blog-style-research.md (same)
-  │
-  ├──→ Merge All Context (Code: combine into structured bundle)
-  │
-  ├──→ Detect Content Type (Code: if not set, infer from topic signals)
-  │
-  ├──→ Assemble Draft Prompt (Code: system prompt + user prompt with all context)
-  │
-  ├──→ Generate Draft (HTTP: POST Anthropic /v1/messages)
-  │      ├── Model: claude-sonnet-4-6
-  │      ├── Max tokens: 8000
-  │      ├── Temperature: 0.7
-  │      ├── System prompt: assembled brand context
-  │      └── User prompt: topic + research + voice seeds
-  │
-  ├──→ Parse Draft Response (Code: extract markdown, parse META comment)
-  │
-  ├──→ Convert Markdown to Notion Blocks (Code: Josepha converter, batched)
-  │
-  ├──→ Write Draft to Notion
-  │      ├── Clear existing page body (if revision: preserve in toggle first)
-  │      ├── Append draft blocks (HTTP: PATCH Notion /blocks/{pageId}/children, batched by 100)
-  │      └── Update properties (HTTP: PATCH Notion /pages/{pageId})
-  │            ├── Set Pipeline Version = current git hash
-  │            ├── Set Content Type if auto-detected
-  │            └── Status → "Draft"
-  │
-  └──→ Trigger Evaluation (HTTP: POST n8n.t-0.co/webhook/t0-draft-evaluation, { pageId })
-```
-
-**Anthropic API call details**:
-
-```json
-POST https://api.anthropic.com/v1/messages
-x-api-key: {anthropic_api_key}
-anthropic-version: 2023-06-01
-Content-Type: application/json
-
-{
-  "model": "claude-sonnet-4-6",
-  "max_tokens": 8000,
-  "temperature": 0.7,
-  "system": "{assembled system prompt — ~6000 tokens of brand context}",
-  "messages": [
-    {
-      "role": "user",
-      "content": "{assembled user prompt — topic + research + voice seeds}"
-    }
-  ]
-}
-```
-
-**Estimated token usage per draft**: ~8,000 input tokens (system + user) + ~4,000 output tokens = ~12,000 total
-
-**Config loading strategy**: Pipeline config files (`prompts/`, `config/`) are loaded from this GitHub repo at generation time. Options:
-1. **GitHub raw URL**: `GET https://raw.githubusercontent.com/T-0-co/t-0_content-production/main/prompts/draft-system-prompt.md` — simple, always latest
-2. **n8n static data**: Copy config to n8n workflow static data on deploy — faster but requires sync step
-3. **Git clone in Code node**: `git archive` the latest config — most robust but heavier
-
-Recommendation: GitHub raw URL for simplicity. The ratchet commits changes to the repo; the pipeline always reads the latest committed version.
-
----
-
-### WF-3: Evaluation & Scoring
-
-**Webhook**: `POST https://n8n.t-0.co/webhook/t0-draft-evaluation`
-**Trigger**: Chained from WF-2, or manual
-**Estimated nodes**: 15-20
+**Webhook**: `POST https://n8n.t-0.co/webhook/t0-image-gen`
+**Trigger**: Called from WF-1 (Ghost publication branch), or standalone via "Run Image Gen" button
+**Based on**: Existing Josepha image generation workflow (adapted for T-0 style)
 
 ```
 Webhook Trigger (receives { pageId })
   │
-  ├──→ Fetch Draft Content (HTTP: GET Notion /blocks/{pageId}/children, paginated)
-  │      └── Convert Blocks to Text (Code: blocks → plain text markdown)
-  │
-  ├──→ Fetch Evaluation Rubric
-  │      └── Read content-evaluation-guide.md (HTTP: GET GitHub raw URL)
-  │
-  ├──→ Fetch Brand Voice Reference
-  │      └── Read Writing Guide voice section (HTTP: GET Notion, or from cache)
-  │
-  ├──→ Assemble Evaluation Prompt (Code)
-  │
-  ├──→ Run Evaluation (HTTP: POST Anthropic /v1/messages)
-  │      ├── Model: claude-sonnet-4-6
-  │      ├── Max tokens: 2000
-  │      ├── Temperature: 0.2 (low — we want consistent scoring)
-  │      └── System: "You are a strict content evaluator..."
-  │
-  ├──→ Parse Scores (Code: extract JSON, validate schema, compute composite)
-  │
-  ├──→ Apply Gate Rules (Code)
-  │      ├── Check: composite ≥ 28?
-  │      ├── Check: all dimensions ≥ 3?
-  │      ├── Check: voice ≥ 4?
-  │      └── Determine: advance to "Pre Review" or stay at "Draft"
-  │
-  ├──→ Write Scores to Notion (HTTP: PATCH Notion /pages/{pageId})
-  │      ├── Set all 7 dimension score properties
-  │      ├── Set Composite Score
-  │      ├── Set Quality Tier
-  │      ├── Set Evaluation Notes
-  │      ├── Set Evaluated At
-  │      └── Set Status (conditional)
-  │
-  ├──→ Append Evaluation Feedback Block (HTTP: PATCH Notion /blocks/{pageId}/children)
-  │      └── Callout block with scores summary + per-dimension feedback
-  │
-  └──→ Create Notion Comment (HTTP: POST Notion /v1/comments)
-         └── Status update notification for Aaron
-```
-
-**Evaluation consistency**: To prevent score drift, the evaluation prompt includes 3 calibration examples (one "Excellent", one "Good", one "Below Standard" draft with expected scores). These examples are stored in `prompts/evaluation-calibration.md` and loaded at evaluation time.
-
----
-
-### WF-4: Ghost Publication
-
-**Webhook**: `POST https://n8n.t-0.co/webhook/t0-ghost-publish`
-**Trigger**: Notion automation on Status change to "Publishable"
-**Estimated nodes**: 20-25
-
-```
-Webhook Trigger (receives { pageId } from Notion automation)
-  │
-  ├──→ Acknowledge Webhook
-  │
-  ├──→ Fetch Full Page Data (HTTP: GET Notion /pages/{pageId} + /blocks/{pageId}/children)
-  │
-  ├──→ [PARALLEL]
-  │      ├── Convert Notion Blocks to HTML (Code: block-to-HTML converter)
-  │      ├── Generate Ghost JWT (Code: from Admin API key)
-  │      └── Download Featured Image (HTTP: GET Google Drive URL, if Image property set)
-  │
-  ├──→ Upload Image to Ghost (HTTP: POST Ghost /images/upload/, if image exists)
-  │
-  ├──→ Map Properties to Ghost Fields (Code)
-  │      ├── Title: Title property (fallback: Name)
-  │      ├── Tags: Category Tags → Ghost tag names + #pipeline-generated internal tag
-  │      ├── Author: Author email → Ghost author
-  │      ├── Excerpt: Pitch, first 300 chars
-  │      ├── SEO: auto-generate meta_title (60 chars), meta_description (155 chars)
-  │      └── Schedule: Due Date planned → published_at (if set)
-  │
-  ├──→ Create Ghost Post (HTTP: POST Ghost /posts/?source=html)
-  │
-  ├──→ IF: Scheduled?
-  │      ├── YES → Update Post Status to Scheduled (HTTP: PUT Ghost /posts/{id}/)
-  │      └── NO → Leave as draft (Aaron publishes manually in Ghost Admin)
-  │
-  └──→ Update Notion (HTTP: PATCH Notion /pages/{pageId})
-         ├── URL = Ghost post URL
-         ├── Ghost ID = Ghost post ID
-         ├── Publication Date actual = now or scheduled date
-         └── Status = "Published"
-```
-
----
-
-### WF-5: Image Generation
-
-**Webhook**: `POST https://n8n.t-0.co/webhook/t0-image-gen`
-**Trigger**: Notion "Run Image Gen" button, or chained from WF-4
-**Based on**: Josepha Image Generation workflow (adapted)
-**Estimated nodes**: 25-30
-
-```
-Webhook Trigger (receives { pageId } or button automation payload)
-  │
-  ├──→ Extract Page Data (Code: get Image Gen Description, Title, Pitch)
+  ├──→ HTTP: GET Notion /pages/{pageId}
+  │     Extract: Image Gen Description, Title, Pitch, Name
   │
   ├──→ IF: Image Gen Description empty?
-  │      ├── YES → Auto-Generate Description (HTTP: POST Anthropic, short summary prompt)
-  │      └── NO → Use existing description
+  │     ├── YES: AI Agent — auto-generate description
+  │     │   ├── Chat Model: OpenRouter (claude-sonnet-4-6, temp=0.5)
+  │     │   └── Prompt: "Summarize this post topic into a 50-word
+  │     │       illustration scene description: {title} — {pitch}"
+  │     └── NO: Use existing description
   │
-  ├──→ Fetch T-0 Illustration Style Guide (HTTP: GET Notion wiki page blocks)
+  ├──→ HTTP: GET Notion — T-0 illustration style guide page blocks
   │
-  ├──→ Enhance Prompt (HTTP: POST Perplexity /chat/completions, sonar, temp=0.3)
-  │      └── Input: description + style guide → Output: {imageDescription, imageTitle}
+  ├──→ AI Agent: Enhance Image Prompt
+  │     ├── Chat Model: OpenRouter (claude-sonnet-4-6, temp=0.3)
+  │     ├── Tools: Perplexity (optional — for visual reference research)
+  │     └── Output: { imageDescription: "...", imageTitle: "kebab-case-name" }
   │
-  ├──→ [OPTIONAL: Reference Image]
-  │      ├── List Reference Images in Drive Folder (HTTP: GET Google Drive API)
-  │      ├── AI Select Best Match (HTTP: POST Anthropic, structured output)
-  │      └── Download Reference (HTTP: GET Google Drive)
+  ├──→ Code: Build Gemini request (multimodal payload)
   │
-  ├──→ Build Gemini Request (Code: multimodal payload with text + optional reference)
+  ├──→ HTTP: POST Gemini API (timeout=60s)
+  │     Generate image from enhanced prompt
   │
-  ├──→ Generate Image (HTTP: POST Gemini API, timeout=60s)
+  ├──→ Code: Parse response, extract base64 → binary PNG
   │
-  ├──→ Parse & Convert (Code: extract base64 → binary PNG)
+  ├──→ HTTP: POST Google Drive API
+  │     Upload to "Image Generation Dump for Blog" folder (13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE)
   │
-  ├──→ Upload to Google Drive (HTTP: POST Drive API, to T-0 Generated Images folder)
+  ├──→ HTTP: POST Google Drive permissions API
+  │     Set public sharing
   │
-  ├──→ Set Public Sharing (HTTP: POST Drive permissions API)
+  ├──→ HTTP: PATCH Notion /pages/{pageId}
+  │     Image property = Drive URL
   │
-  └──→ Update Notion
-         ├── Image property = Drive URL
-         └── Append image block to page body
+  ├──→ HTTP: PATCH Notion /blocks/{pageId}/children
+  │     Append image block to page body
+  │
+  └──→ IF: Ghost post exists (Ghost ID property set)?
+        └── YES: HTTP: POST Ghost /images/upload/ + PUT /posts/{id}/
+            Upload image to Ghost and set as feature_image
 ```
 
 ---
 
-### WF-6: Ratchet Analysis
+## Workflow 4: Ratchet Analysis (Dormant → Active)
 
-**Schedule**: Monthly, 1st of month 10:00 CET
-**Webhook**: `POST https://n8n.t-0.co/webhook/t0-ratchet-analysis`
-**Estimated nodes**: 20-30
+**Schedule**: Monthly, 1st of month 10:00 CET (dormant until enough data exists)
+**Webhook**: `POST https://n8n.t-0.co/webhook/t0-ratchet-analysis` (manual trigger)
+**Activation threshold**: 20+ evaluated drafts in Content Creation DB
+
+### Design Principles
+
+- **Full autonomy**: Can modify prompts, style parameters, AND source selection/weighting
+- **Versioned changes**: Every modification committed to repo via PR, with before/after scores
+- **Rollback-ready**: Each PR includes rollback instructions and the previous config
+- **Conservative acceptance**: Changes accepted only if avg composite improves ≥1 AND no dimension drops >0.5
+
+### Flow
 
 ```
 Schedule Trigger / Webhook Trigger
   │
-  ├──→ Query Evaluated Entries (HTTP: POST Notion query Content Creation DB)
-  │      └── Filter: Composite Score ≥ 1, Evaluated At in last 30 days
+  ├──→ HTTP: POST Notion Content Creation DB query
+  │     Filter: Composite Score ≥ 1, Evaluated At in last 30 days
+  │     IF: fewer than 20 results → exit (not enough data)
   │
-  ├──→ Compute Statistics (Code)
-  │      ├── Average per dimension
-  │      ├── Composite trend vs. previous months
-  │      ├── Per-content-type breakdown
-  │      ├── Per-source-type breakdown (RSS vs Slack rant vs manual)
-  │      └── Identify weakest dimensions
+  ├──→ Code: Compute Statistics
+  │     - Average per dimension
+  │     - Composite trend vs. previous months
+  │     - Per-content-type breakdown
+  │     - Per-source-type breakdown (RSS vs Slack vs manual)
+  │     - Weakest dimensions
   │
-  ├──→ Fetch Current Config (HTTP: GET GitHub raw URLs for prompts + style-params)
+  ├──→ HTTP: GET GitHub raw — current prompts + style params
   │
-  ├──→ Generate Improvement Proposals (HTTP: POST Anthropic /v1/messages)
-  │      └── Claude analyzes trends + current config → proposes 1-3 specific changes
+  ├──→ AI Agent: Generate Improvement Proposals
+  │     ├── Chat Model: OpenRouter (claude-sonnet-4-6, temp=0.5)
+  │     ├── Tool: Perplexity (for current writing best practices)
+  │     └── Output: 1-3 specific, testable changes
   │
-  ├──→ A/B Test Proposals
-  │      ├── Select 5 Past Topics (Code: diverse sample from Content Creation DB)
-  │      ├── For Each Proposal × Each Topic:
-  │      │     ├── Regenerate Draft with Modified Config (HTTP: POST Anthropic)
-  │      │     └── Evaluate Draft (HTTP: POST Anthropic, same rubric)
-  │      └── Aggregate Test Results (Code: compare old vs. new scores)
+  ├──→ A/B Test (loop over proposals × 5 past topics)
+  │     ├── AI Agent: Regenerate draft with modified config
+  │     ├── AI Agent: Evaluate with same rubric
+  │     └── Code: Compare old vs new scores
   │
-  ├──→ Accept/Reject Decisions (Code: apply thresholds)
+  ├──→ Code: Accept/Reject decisions
+  │     Accept if: avg composite +1 AND no dimension -0.5
   │
-  ├──→ Apply Accepted Changes
-  │      ├── Update Config Files in GitHub (HTTP: PUT GitHub API /repos/.../contents/...)
-  │      └── Commit with ratchet metadata
+  ├──→ IF: Accepted changes exist?
+  │     └── YES: HTTP: GitHub API — create PR with changes
+  │         Branch: ratchet/{date}
+  │         Files: modified prompts/style-params
+  │         PR body: score data, proposals, test results
   │
-  └──→ Create Ratchet Report in Notion (HTTP: POST Notion, Pipeline Runs DB)
-         └── Full analysis with trends, proposals, test results, decisions
+  └──→ HTTP: POST Notion comment on Content Production project page
+        Ratchet run summary with trends and decisions
 ```
 
 ---
 
-## API Integration Specifications
+## Evaluation Rubric (Immutable)
 
-### Notion API
+From the Content Evaluation Guide:
 
-**Version**: `2022-06-28` (via n8n `notionApi` credential — injects this version automatically)
-**Base URL**: `https://api.notion.com/v1/`
-**Auth**: Integration token (Bearer)
+| Dimension | Weight | Max Score | What It Measures |
+|-----------|--------|-----------|------------------|
+| Clarity | 1.0× | 5 | Understandable? No jargon without explanation? |
+| Structure | 1.0× | 5 | Progressive disclosure? Scannable? |
+| Accuracy | 1.5× | 7.5 | Facts correct? Sources cited? |
+| Credibility | 1.5× | 7.5 | Shows the work? Earned confidence? |
+| Engagement | 1.0× | 5 | Opening hooks? Holds attention? |
+| Voice | 1.0× | 5 | Sounds like T-0? Strong opinions? Du-Form? |
+| Actionability | 1.0× | 5 | Reader knows what to do next? |
+| **Composite** | — | **40** | Weighted sum |
 
-**Endpoints used**:
+**Quality tiers**: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)
 
-| Endpoint | Method | Purpose | Workflow |
-|----------|--------|---------|----------|
-| `/databases/{id}/query` | POST | Query Sources DB, Feed Items DB, Content Creation DB | WF-1, WF-3, WF-6 |
-| `/pages` | POST | Create feed items, content ideas, pipeline run entries | WF-1, WF-6 |
-| `/pages/{id}` | PATCH | Update scores, status, properties | WF-2, WF-3, WF-4, WF-5 |
-| `/pages/{id}` | GET | Read page properties | WF-2, WF-4 |
-| `/blocks/{id}/children` | GET | Read page body, wiki pages | WF-2, WF-3, WF-5 |
-| `/blocks/{id}/children` | PATCH | Append draft blocks, eval feedback, image blocks | WF-2, WF-3, WF-5 |
-| `/comments` | POST | Create status notification comments | WF-3 |
+**Constitutional gate**: Voice < 4 blocks advancement regardless of composite score.
 
-**Pagination**: All list/query endpoints paginated at 100 items. All Code nodes must handle `has_more` + `start_cursor`.
-
-**Block append limit**: Max 100 blocks per PATCH. Longer drafts must be batched (Josepha pattern).
-
-**Known pitfalls**:
-- `notionApi` credential forces `Notion-Version: 2022-06-28` — cannot override
-- Use `database_id` (not `data_source_id`) with `/databases/` endpoints
-- `status` properties accept `select` syntax with `2022-06-28`
-- Page creation with children is unreliable via MCP — use two-step: create page, then PATCH children
-
-### Ghost Admin API
-
-**Base URL**: `https://blog.t-0.co/ghost/api/admin/`
-**Auth**: JWT (HS256, 5 min expiry, audience `/admin/`)
-**Key location**: n8n credential on `n8n.t-0.co` (stored), also in T-0 server SOPS
-
-**Endpoints used**:
-
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/posts/` | POST | Create draft post |
-| `/posts/{id}/` | PUT | Update post (schedule, publish) |
-| `/posts/{id}/` | GET | Read post (verify creation) |
-| `/images/upload/` | POST | Upload featured image |
-| `/tags/` | GET | List existing tags |
-
-**Content format**: `?source=html` query param on POST/PUT → Ghost converts HTML to Lexical internally.
-
-**Tag handling**: Short-form `"tags": ["tag-name"]` auto-creates missing tags. Include `"#pipeline-generated"` as internal tag on all pipeline-created posts.
-
-**Image format**: WEBP or PNG, multipart/form-data upload. Max size: Ghost default is 5MB.
-
-**Rate limiting**: No documented rate limits. Use 1s delay between successive calls as courtesy.
-
-**Known pitfalls**:
-- `mobiledoc` field is null — do not use (Ghost 6 = Lexical)
-- Settings API returns 403 with integration tokens — not relevant for this pipeline
-- `updated_at` required for PUT operations — always GET first, then PUT with fresh timestamp
-- Tags and authors are REPLACED, not merged — always send complete arrays
-
-### Anthropic Claude API
-
-**Base URL**: `https://api.anthropic.com/v1/`
-**Auth**: `x-api-key` header
-**Version**: `anthropic-version: 2023-06-01`
-
-**Usage in pipeline**:
-
-| Purpose | Model | Temperature | Max Tokens | Est. Input | Est. Output |
-|---------|-------|-------------|------------|------------|-------------|
-| Draft generation | claude-sonnet-4-6 | 0.7 | 8,000 | ~8,000 | ~4,000 |
-| Evaluation | claude-sonnet-4-6 | 0.2 | 2,000 | ~6,000 | ~800 |
-| Ratchet proposals | claude-opus-4-6 | 0.5 | 4,000 | ~10,000 | ~2,000 |
-| Image description | claude-sonnet-4-6 | 0.5 | 500 | ~2,000 | ~200 |
-| Revision generation | claude-sonnet-4-6 | 0.7 | 8,000 | ~10,000 | ~4,000 |
-
-**Monthly cost estimate** (assuming 8 drafts/month, each with eval + 1 revision):
-- Drafting: 8 × 12K tokens × $0.003/1K (sonnet in) + 8 × 4K × $0.015/1K (sonnet out) = ~$0.77
-- Evaluation: 16 × 6.8K tokens = ~$0.33 + ~$0.19 = ~$0.52
-- Ratchet: 1 run × ~50K total tokens ≈ ~$1.00
-- **Total: ~$3-5/month** (very low)
-
-### Perplexity API
-
-**Base URL**: `https://api.perplexity.ai/`
-**Auth**: Bearer token
-
-**Usage in pipeline**:
-
-| Purpose | Model | Temperature | Max Tokens |
-|---------|-------|-------------|------------|
-| Source triage | sonar-pro | 0.2 | 1,000 |
-| Supplementary research | sonar-pro | 0.3 | 3,000 |
-| Pitch generation | sonar-pro | 0.4 | 1,000 |
-| Image prompt enhancement | sonar | 0.3 | 500 |
-
-**Response format**: Chat completion compatible. Citations in `citations` array.
-
-### Google Gemini API
-
-**Base URL**: `https://generativelanguage.googleapis.com/v1beta/`
-**Auth**: API key as query parameter
-**Model**: `gemini-2.0-flash-exp` (or latest image generation model)
-
-**Usage**: Image generation only. Multimodal input (text + optional reference image as base64 inlineData).
-
-### Jina Reader API
-
-**Base URL**: `https://r.jina.ai/`
-**Auth**: Bearer token (optional — free tier available)
-**Usage**: Article full-text extraction from URLs
-
-**Call pattern**: `GET https://r.jina.ai/{encoded_url}` → returns markdown
-**Content cap**: 8,000 characters for full fetch, 4,000 for homepage fallback
-
-### Slack API
-
-**Base URL**: `https://slack.com/api/`
-**Auth**: Bot OAuth token
-
-**Endpoints used**:
-
-| Endpoint | Purpose |
-|----------|---------|
-| `conversations.history` | Fetch recent messages from #tech-shit-talk |
-| `conversations.replies` | Fetch thread replies |
-| `conversations.info` | Get channel details |
-
-**Required scopes**: `channels:history`, `channels:read`
-**Rate limit**: Tier 3 (50+ requests/minute) — not a concern for weekly ingestion
+**Calibration**: Deferred to implementation phase. After 3-5 posts are manually scored by Aaron as calibration anchors, these examples are stored in `prompts/evaluation-calibration.md` and loaded at evaluation time.
 
 ---
 
-## Configuration Layer (This Repo)
+## Configuration Layer
+
+### Notion Resources DB (Foundational Context)
+
+The T-0 Resources DB in Notion holds foundational texts that shape pipeline behavior. These are loaded at runtime, ensuring the latest versions are always used (Josepha pattern).
+
+**Loaded at generation time**:
+1. **Brand Writing Guide** (page `2d1c0fdf-942d-810d-8fda-cf181d93bf46`) — voice, tone, terminology
+2. **Blog Content Guide** (page `2d1c0fdf-942d-81cf-bd59-f54a251a1571`) — structural templates per content type
+3. **Blog Style Analysis** (page `2d7c0fdf-942d-813e-a679-e55b56cea58b`) — pattern library from industry leaders
 
 ### Repository Structure
 
@@ -1459,16 +932,15 @@ t-0_content-production/
 │   ├── specs/
 │   └── templates/
 ├── config/
-│   ├── sources.yaml                   # Initial source registry (seeded, pipeline manages via Notion)
-│   └── style-params.yaml              # Ratchet-tunable style parameters
+│   └── style-params.yaml             # Ratchet-tunable style parameters
 ├── prompts/
 │   ├── draft-system-prompt.md         # Master drafting system prompt
 │   ├── triage-prompt.md               # Source triage prompt template
 │   ├── evaluation-prompt.md           # Evaluation prompt template
-│   ├── evaluation-calibration.md      # Calibration examples for consistent scoring
-│   ├── research-prompt.md             # Supplementary research prompt
+│   ├── evaluation-calibration.md      # Calibration examples (deferred)
+│   ├── research-prompt.md             # Research agent instructions
 │   ├── image-description-prompt.md    # Image auto-description prompt
-│   └── ratchet-analysis-prompt.md     # Ratchet improvement proposal prompt
+│   └── ratchet-analysis-prompt.md     # Ratchet proposal prompt
 ├── docs/
 │   ├── sources/                       # Reference documents
 │   │   ├── blog-writing-assistant-spec.md
@@ -1488,19 +960,20 @@ t-0_content-production/
 
 ```yaml
 # T-0 Content Pipeline — Style Parameters
-# Modifiable by the ratchet loop. Changes require git commit with ratchet metadata.
-# Version tracked via git hash. Each draft records which version was used.
+# Modifiable by the ratchet loop. Changes committed via PR with score data.
+# Each draft records which version was used (git hash in Pipeline Version property).
 
 voice:
-  opinion_strength: 0.8          # 0-1: how strongly to state opinions (0.8 = "Spielzeug" level directness)
-  personal_anecdote_required: true  # require at least one first-person experience
-  show_the_work: true             # require showing process/commands/prompts
-  german_first: true              # German as primary language
-  max_anglicisms_per_paragraph: 3  # limit English terms in German text
+  opinion_strength: 0.8          # 0-1: how strongly to state opinions
+  personal_anecdote_required: true
+  show_the_work: true
+  german_first: true             # German output default
+  english_path_available: true   # Switch for English output when needed
+  max_anglicisms_per_paragraph: 3
 
 structure:
-  progressive_disclosure: true    # enforce Surface → Middle → Depth structure
-  technical_sections_marked: true # require ### Technisch: headers
+  progressive_disclosure: true
+  technical_sections_marked: true
   target_word_count:
     opinion: 1500
     resource: 1200
@@ -1509,7 +982,7 @@ structure:
   max_word_count: 2500
 
 opening:
-  preferred_patterns:             # weighted selection (ratchet can adjust weights)
+  preferred_patterns:            # weighted selection (ratchet can adjust)
     concrete_scenario: 0.3
     personal_discovery: 0.3
     provocative_observation: 0.25
@@ -1524,19 +997,17 @@ closing:
     next_level: 0.15
 
 evidence:
-  min_external_sources: 2         # minimum cited sources per post
-  cite_style: embedded_hyperlink  # per Brand Writing Guide v2.1
-  primary_sources_preferred: true # original > aggregator
+  min_external_sources: 2
+  cite_style: embedded_hyperlink
+  primary_sources_preferred: true
 
 cta:
-  type: soft                      # soft | none | primary
+  type: soft
   default_label: "Schreib uns"
-  opinion_pieces_cta: none        # opinion pieces don't need CTA
+  opinion_pieces_cta: none
 ```
 
-### Prompt Templates
-
-Prompt templates in `prompts/` use `{variable}` placeholders that are filled at runtime by n8n Code nodes. Example structure for `draft-system-prompt.md`:
+### Draft System Prompt Structure
 
 ```markdown
 # System Prompt: T-0 Blog Draft Generation
@@ -1570,51 +1041,305 @@ Du schreibst Content für T-0, eine KI-Transformations-Agentur.
 3. Keine verbotenen Begriffe: {banned_terms_list}
 4. Zeige die Arbeit: konkrete Beispiele, Zahlen, Prozesse.
 5. Niemals T-0 explizit bewerben. Die Einsicht ist der Pitch.
-6. Alle recherchierten Quellen müssen als eingebettete Hyperlinks erscheinen.
+6. Alle recherchierten Quellen als eingebettete Hyperlinks.
 7. Technische Abschnitte mit ### Technisch: markieren.
 8. Keine Em-Dashes. Punkte oder Satzumstellung stattdessen.
 ```
 
 ---
 
-## User Touchpoints & Interactions
+## Database Changes
 
-### Aaron's Daily/Weekly Workflow
+### Content Creation DB — Extend (database_id: `2afc0fdf-942d-813e-bafa-fe13acf0b35f`)
 
-| When | Action | Where | Pipeline Response |
-|------|--------|-------|-------------------|
-| Anytime | Enter a topic idea | Notion: create Content Creation entry with Name + Pitch | Entry appears as "Idea" |
-| Anytime | Promote idea to pipeline | Notion: move Status → "Backlog" | WF-2 triggers: research → draft → evaluate |
-| After eval notification | Review draft | Notion: read page body + scores | — (human reads) |
-| After review | Approve | Notion: move Status → "Publishable" | WF-4 + WF-5 trigger: Ghost draft + image |
-| After review | Request revision | Notion: move Status → "In Revision" + add comment | WF-2 re-runs with feedback |
-| After Ghost draft | Final check | Ghost Admin: review post | — (human reviews in Ghost) |
-| After Ghost check | Publish | Ghost Admin: click "Publish" (or let schedule fire) | Notion status auto-updates |
-| Weekly | Review new ideas | Notion: browse "Idea" entries from WF-1 | — (human curates) |
-| Monthly | Review pipeline health | Notion: read ratchet report in Pipeline Runs DB | — (human reviews trends) |
+**Existing properties** (all kept):
 
-### Notion Automations Required
+| Property | Type |
+|----------|------|
+| Name | title |
+| Status | status |
+| Category Tags | multi_select |
+| URL | url |
+| Run Image Gen | button |
+| Due Date planned | date |
+| Pitch | rich_text |
+| Title | rich_text |
+| Related Content | relation |
+| Description | rich_text |
+| Notes | relation (→ Notes DB) |
+| Publication Date actual | date |
+| Project | relation |
+| Target Audience Tags | multi_select |
+| Author | people |
+| Image Gen Description | rich_text |
+| Campaign | relation |
+| Platform | multi_select |
+| Image | files |
+| Lead | relation |
+| Reviewer | people |
 
-These automations fire webhooks to n8n when Notion page status changes:
+**New properties to add**:
 
-| Trigger | Webhook Target | Payload |
-|---------|---------------|---------|
-| Content Creation Status → "Backlog" | `n8n.t-0.co/webhook/t0-draft-generation` | `{ "pageId": "..." }` |
-| Content Creation Status → "In Revision" | `n8n.t-0.co/webhook/t0-draft-generation` | `{ "pageId": "...", "mode": "revision" }` |
-| Content Creation Status → "Publishable" | `n8n.t-0.co/webhook/t0-ghost-publish` | `{ "pageId": "..." }` |
+| Property | Type | Purpose | API-creatable? |
+|----------|------|---------|----------------|
+| Run Pipeline | button | Single trigger for content pipeline | **No** — Playwright MCP required |
+| Content Type | select | Opinion/Resource/Case Study/Technical/Announcement | Yes |
+| Clarity Score | number | Eval dimension (1-5) | Yes |
+| Structure Score | number | Eval dimension (1-5) | Yes |
+| Accuracy Score | number | Eval dimension (1-5) | Yes |
+| Credibility Score | number | Eval dimension (1-5) | Yes |
+| Engagement Score | number | Eval dimension (1-5) | Yes |
+| Voice Score | number | Eval dimension (1-5) | Yes |
+| Actionability Score | number | Eval dimension (1-5) | Yes |
+| Composite Score | number | Weighted total (max 40) | Yes |
+| Quality Tier | select | Excellent/Good/Acceptable/Below Standard/Poor | Yes |
+| Evaluation Notes | rich_text | Top strength + weakness + voice assessment | Yes |
+| Pipeline Version | rich_text | Git hash of config used | Yes |
+| Evaluated At | date | Last evaluation timestamp | Yes |
+| Ghost ID | rich_text | Ghost post ID | Yes |
+| Source Type | select | RSS/Slack Rant/Manual/Mixed | Yes |
 
-**Notion automation format** (as documented in n8n pitfalls): Notion automations send `{ source: {...}, data: { object: "page", id: "...", properties: {...} } }`. The webhook-receiving Code node must flatten this.
+**Status values** (extend existing):
 
-### Ghost Admin Interaction
+Current values need verification, but the pipeline expects these states: Idea → Backlog → Draft → Pre Review → In Revision → Publishable → Published. Status property values can only be modified via Notion UI or Playwright MCP.
 
-After WF-4 creates a Ghost draft, Aaron interacts with it in Ghost Admin:
+**Notion automation** (manual setup required):
 
-1. Open `blog.t-0.co/ghost/` → Posts → filter by "Draft"
-2. Review: formatting, images, tag correctness, SEO preview
-3. Make minor edits in Ghost if needed (formatting tweaks, not content changes)
-4. Click "Publish" (or verify schedule is correct)
+| Button | Automation | Webhook |
+|--------|------------|---------|
+| Run Pipeline (click) | Send webhook | `POST n8n.t-0.co/webhook/t0-content-pipeline` with page data |
 
-**Note**: Content edits should happen in Notion (where the pipeline can track them). Ghost is for final visual verification only.
+### Notes DB — Extend (database_id: `2afc0fdf-942d-819a-b859-e69dcc48d67d`)
+
+The Notes DB already has most properties needed. Minimal changes:
+
+**New property**:
+
+| Property | Type | Purpose | API-creatable? |
+|----------|------|---------|----------------|
+| Source | relation → Content Sources DB | Which RSS/Slack source this came from | Yes |
+
+**New Origin values** (auto-created on first use via API):
+- `rss-ingestion` — items ingested from RSS feeds
+- `slack-auto-capture` — threads captured by timer-based Slack workflow
+
+**Existing properties used by pipeline**:
+
+| Property | Pipeline Usage |
+|----------|---------------|
+| Name | Article title / discussion topic |
+| URL | Article URL / Slack thread link |
+| Time | Published date / thread timestamp |
+| Status | Backlog → Currently Relevant → Keep/Discarded |
+| Origin | rss-ingestion / slack-auto-capture |
+| Origin Description | Feed name or channel name |
+| Description | RSS summary / Slack thread summary |
+| Summary | AI-generated summary |
+| AI-Tags | Auto-assigned topic tags |
+| AI-Category | Auto-assigned category |
+| thread_ts_slack | Slack thread timestamp (Slack items only) |
+| channel_id_slack | Slack channel ID (Slack items only) |
+| contributors_slack | Thread participants (Slack items only) |
+| Content Creation | Relation to Content Creation entry (if item became content) |
+| Source | (NEW) Relation to Content Sources DB |
+
+### Content Sources DB — New (in T-0 Main DB)
+
+Create a page "T-0 Content Sources" in the T-0 Main DB (`2afc0fdf-942d-812e-b5db-f7595c7494e9`), with an inline child database.
+
+| Property | Type | Purpose |
+|----------|------|---------|
+| Name | title | Source name (e.g., "Simon Willison") |
+| URL | url | Homepage URL |
+| RSS URL | url | RSS/Atom feed URL |
+| Type | select | Blog / Newsletter / News / Research / Podcast |
+| Language | select | DE / EN |
+| Region | select | DACH / US / EU / Global |
+| Status | status | Active / Paused / Archived |
+| Weight | number | Priority 1-10 for triage (higher = more likely selected) |
+| Last Fetched | date | Timestamp of last successful fetch |
+| Notes | rich_text | Why this source matters for T-0 |
+
+**Note**: Status property requires Playwright MCP to create (not API-creatable). Alternative: use a select property instead.
+
+**Initial sources** (from blog-style-research.md + team reading list):
+
+| Source | RSS URL | Type | Weight |
+|--------|---------|------|--------|
+| Simon Willison | `simonwillison.net/atom/everything/` | Blog | 8 |
+| Beyond the Hype | `beyondthehype.dev/feed` | Blog | 7 |
+| Anthropic Blog | `anthropic.com/rss.xml` | Research | 9 |
+| Pragmatic Engineer | `blog.pragmaticengineer.com/rss/` | Newsletter | 6 |
+| t3n | `t3n.de/rss.xml` | News | 5 |
+| Import AI | `importai.substack.com/feed` | Newsletter | 7 |
+| Forte Labs | `fortelabs.com/feed/` | Blog | 4 |
+| Stratechery | `stratechery.com/feed/` | Newsletter | 6 |
+| Daring Fireball | `daringfireball.net/feeds/main` | Blog | 3 |
+| Intercom Blog | `intercom.com/blog/feed/` | Blog | 5 |
+
+---
+
+## Ghost Tag Overhaul
+
+**Current state**: 62 tags, including duplicates. Full cleanup authorized.
+
+**Target taxonomy**:
+
+### Content Type Tags (internal — prefixed with `#`, not visible to readers)
+
+| Tag | Purpose |
+|-----|---------|
+| `#opinion` | Opinion/analysis pieces |
+| `#resource` | How-to, explainer, guide content |
+| `#case-study` | Client stories, project retrospectives |
+| `#technical` | Deep technical content |
+| `#announcement` | Company news, updates |
+| `#pipeline-generated` | Content created by the pipeline (tracking) |
+
+### Topic Tags (public)
+
+| Tag | Slug | Scope |
+|-----|------|-------|
+| KI-Agenten | `ki-agenten` | Autonomous agents, MCP, tool use |
+| KI-Transformation | `ki-transformation` | Organizational AI adoption |
+| Automatisierung | `automatisierung` | Workflow automation, n8n, tooling |
+| LLM | `llm` | Language models, prompt engineering |
+| Daten & Analytics | `daten-analytics` | Data strategy, analytics |
+| Mittelstand | `mittelstand` | German SME specific |
+| Strategie | `strategie` | Strategic considerations |
+| Praxis | `praxis` | Practical guides, implementations |
+| MCP | `mcp` | Model Context Protocol specifically |
+
+### Audience Tags (internal)
+
+| Tag | Purpose |
+|-----|---------|
+| `#entscheider` | For decision makers / C-level |
+| `#technisch` | For technical practitioners |
+
+**Migration plan**:
+1. Export current tags via Ghost API
+2. Map each existing tag to the new taxonomy (merge duplicates)
+3. Update all existing posts to use new tags
+4. Delete orphaned/duplicate tags
+5. Implementation uses Ghost Admin API: GET /tags/, PUT /posts/{id}/ (replace tags array)
+
+---
+
+## API Integration Specifications
+
+### OpenRouter (via n8n AI Agent Chat Model)
+
+**n8n node type**: `@n8n/n8n-nodes-langchain.lmChatOpenRouter`
+**Default model**: `anthropic/claude-sonnet-4.6` (via OpenRouter)
+**Credential**: `openRouterApi` type on n8n.t-0.co
+
+All LLM calls go through OpenRouter. No direct Anthropic API calls. This gives:
+- Single credential for all models
+- Model switching without credential changes
+- Cost tracking through OpenRouter dashboard
+
+| Pipeline Step | Model | Temperature | Est. Input Tokens | Est. Output Tokens |
+|---------------|-------|-------------|--------------------|--------------------|
+| Research | claude-sonnet-4.6 | 0.4 | ~3,000 | ~2,000 |
+| Draft generation | claude-sonnet-4.6 | 0.7 | ~8,000 | ~4,000 |
+| Evaluation | claude-sonnet-4.6 | 0.2 | ~6,000 | ~800 |
+| Triage | claude-sonnet-4.6 | 0.2 | ~2,000 | ~200 |
+| Image description | claude-sonnet-4.6 | 0.5 | ~500 | ~200 |
+| Ratchet proposals | claude-sonnet-4.6 | 0.5 | ~10,000 | ~2,000 |
+
+**Monthly cost estimate** (8 drafts/month, each with eval + 1 revision avg):
+- Via OpenRouter: ~$5-8/month total (OpenRouter markup ~10-20% over direct API)
+
+### Notion API
+
+**Version**: `2022-06-28` (forced by n8n `notionApi` credential)
+**Auth**: Integration token (Bearer)
+
+| Endpoint | Purpose | Workflows |
+|----------|---------|-----------|
+| `/databases/{id}/query` | Query Content Sources, Content Creation, Notes | WF-1, WF-2 |
+| `/pages` | Create notes, content ideas | WF-2 |
+| `/pages/{id}` | Update scores, status, properties | WF-1, WF-3 |
+| `/pages/{id}` | Read page properties | WF-1 |
+| `/blocks/{id}/children` | Read/append page body, wiki pages | WF-1, WF-3 |
+| `/comments` | Create status notifications | WF-1 |
+
+**Known pitfalls**:
+- `notionApi` forces `Notion-Version: 2022-06-28`
+- Use `database_id` (not `data_source_id`) with `/databases/`
+- `status` properties accept `select` syntax with `2022-06-28`
+- Block append limit: 100 per PATCH, batch longer content
+- Button and status property creation require Playwright MCP
+
+### Ghost Admin API
+
+**Base URL**: `https://t-0.co/ghost/api/admin/`
+**Auth**: JWT (HS256, 5min expiry, audience `/admin/`)
+**Key**: Dedicated "Content Pipeline" integration (to be created), stored in n8n credential management
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/posts/` | POST | Create draft/scheduled post |
+| `/posts/{id}/` | PUT | Update post (schedule, set feature image) |
+| `/posts/{id}/` | GET | Verify creation, get updated_at for PUT |
+| `/images/upload/` | POST | Upload featured image |
+| `/tags/` | GET | List existing tags (for cleanup) |
+| `/tags/{id}/` | DELETE | Remove duplicate/orphaned tags |
+
+**Content format**: `?source=html` on POST/PUT — Ghost converts HTML to Lexical internally.
+
+**Newsletter fields on posts**:
+```json
+{
+  "newsletter": { "slug": "default-newsletter" },
+  "email_only": false
+}
+```
+
+**Known pitfalls**:
+- `updated_at` required for PUT — always GET first, PUT with fresh timestamp
+- Tags and authors REPLACED, not merged — always send complete arrays
+- Ghost URL is `t-0.co` (not `blog.t-0.co`)
+- Current newsletter sender: `team@chamaeleon.community` (may need updating)
+
+### Perplexity API (as AI Agent Tool)
+
+Configured as an HTTP Request tool within AI Agent nodes. The agent calls it when web-grounded research is needed.
+
+**Base URL**: `https://api.perplexity.ai/chat/completions`
+**Auth**: Bearer token
+**Model**: `sonar-pro` (used by the agent through the tool)
+
+### Jina Reader API (as AI Agent Tool)
+
+Configured as an HTTP Request tool within AI Agent nodes. The agent calls it to extract article full text from URLs.
+
+**Call pattern**: `GET https://r.jina.ai/{encoded_url}` → returns markdown
+**Content cap**: 8,000 characters
+
+### Slack API
+
+**Base URL**: `https://slack.com/api/`
+**Auth**: Bot OAuth token (existing T-0 Slack bot)
+**Required scopes**: `channels:history`, `channels:read`
+
+| Endpoint | Purpose |
+|----------|---------|
+| `conversations.history` | Fetch #tech-shit-talk messages |
+| `conversations.replies` | Fetch thread replies |
+
+### Google Gemini API
+
+**Usage**: Image generation only (WF-3)
+**Model**: Latest image generation model
+**Input**: Text prompt + optional reference image (base64)
+
+### Google Drive API
+
+**Credential**: `googleOAuth2Api` for `aaron@t-0.co`
+**Folder**: "Image Generation Dump for Blog" (`13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE`)
+**Usage**: Upload generated images, set sharing permissions
 
 ---
 
@@ -1622,394 +1347,128 @@ After WF-4 creates a Ghost draft, Aaron interacts with it in Ghost Admin:
 
 | Error | Detection | Response | Recovery |
 |-------|-----------|----------|----------|
-| RSS feed unreachable | HTTP non-200 or timeout | Log error, skip source, continue with others | Next weekly run retries |
-| Slack API rate limited | HTTP 429 | Exponential backoff (n8n retry built-in) | Auto-retry |
-| Perplexity triage returns invalid JSON | Parse error | Fall back to top N items by source weight | No manual action needed |
-| Claude draft generation fails | API error or empty response | Status stays "Backlog", error comment on Notion page | Manual retry or re-trigger webhook |
-| Claude evaluation returns scores outside range | Validation (score <1 or >5) | Re-run evaluation with explicit range instruction | Auto-retry once, then flag |
-| Notion API 409 (conflict) | HTTP 409 | Fetch latest page version, re-apply changes | Auto-retry with fresh data |
-| Ghost post creation fails | API error | Status stays "Publishable", error comment on Notion page | Manual retry or debug |
-| Ghost image upload fails | API error | Create post without image, flag in Notion comment | Generate image separately |
-| Jina Reader returns empty/paywalled | Content <100 chars | Fall back to RSS summary + Perplexity research | Draft includes "limited source" disclaimer |
-| Gemini image gen fails | API error or no inlineData | Post proceeds without image, Notion comment added | Manual retry via "Run Image Gen" button |
-| Ratchet A/B test inconclusive | Score difference <1 point | Reject proposal (conservative — don't change what works) | Try different proposal next month |
-| n8n workflow execution timeout | Exceeds n8n timeout (default: 5min for webhooks) | Workflow fails, execution logged | Increase timeout for long workflows (WF-2 should be 10min) |
+| RSS feed unreachable | HTTP non-200/timeout | Log, skip source, continue | Next scheduled run retries |
+| Slack API rate limited | HTTP 429 | n8n built-in retry with backoff | Auto-retry |
+| Triage returns invalid JSON | Parse error | Fall back to top N by source weight | No manual action |
+| Draft generation fails | API error / empty response | Status unchanged, error comment in Notion | Re-press "Run Pipeline" |
+| Evaluation scores out of range | Validation (score <1 or >5) | Re-run with explicit range instruction | Auto-retry once |
+| Notion API 409 conflict | HTTP 409 | Fetch latest version, re-apply | Auto-retry |
+| Ghost post creation fails | API error | Status stays "Publishable", error in Notion | Re-press "Run Pipeline" |
+| Ghost image upload fails | API error | Post created without image | Trigger WF-3 separately |
+| Jina returns empty/paywalled | Content <100 chars | Fall back to Perplexity research | Draft includes disclaimer |
+| Gemini image gen fails | API error | Post proceeds without image | Manual "Run Image Gen" |
+| OpenRouter rate limit/error | API error | n8n retry with backoff | Auto-retry (3 attempts) |
+| n8n workflow timeout | Exceeds default 5min | Execution fails, logged in n8n | Set WF-1 timeout to 10min |
+| Ratchet A/B inconclusive | Score diff <1 point | Reject proposal (conservative) | Next monthly run |
 
-### Monitoring & Alerting
+### Monitoring
 
-**Pipeline Runs DB** serves as the monitoring dashboard. Each workflow execution creates an entry with:
-- Run type (ingestion, draft, evaluation, publication, image, ratchet)
-- Status (success/failed/partial)
-- Duration
-- Error log (if failed)
-- Entries processed
+n8n execution history serves as the monitoring dashboard. Each workflow execution is logged with status, duration, and error details.
 
-**Optional**: n8n → Telegram notification on failure (existing pattern in Aaron's stack).
+Optional enhancement: n8n → Telegram notification on WF-1/WF-2 failure (existing pattern in Aaron's stack).
 
 ---
 
 ## Patterns Borrowed from Josepha
 
-| Pattern | Josepha Implementation | T-0 Adaptation |
-|---------|----------------------|----------------|
-| Fan-out/aggregate | Split array → process individually → aggregate | Same — for RSS feeds, feed items, block batches |
-| Fire-and-forget webhook | Acknowledge immediately, process async | Same — for draft gen, publication, image gen |
-| CI docs loaded at generation time | Fetch 3 Notion wiki pages per run | Fetch 3 Notion guide pages + repo config files |
-| JSON repair parser | Regex extract + trailing comma + newline escape | Same — for triage and evaluation JSON responses |
-| Retry with lower temperature | On parse failure, retry at temp-0.1 | Same — for triage and evaluation |
-| Markdown-to-Notion-blocks converter | h1-h3, bullets, numbered, quotes, dividers, bold/italic/code/links | Same converter, extended for callouts and toggles |
-| Dedup via URL set-diff | Compare feed URLs against existing Notion entries | Same |
-| Notion status state machine | New → Used in Report | Extended: Idea → Backlog → Draft → Pre Review → ... → Published |
+| Pattern | Josepha | T-0 Adaptation |
+|---------|---------|----------------|
+| Fan-out/aggregate | Split array → process → aggregate | Same — RSS feeds, block batches |
+| Fire-and-forget webhook | Acknowledge → process async | Same — all webhook workflows |
+| Brand context loaded at runtime | Fetch Notion wiki pages per run | Same — 3 guide pages + repo config |
+| JSON repair parser | Regex + trailing comma + newline escape | Same — triage and evaluation JSON |
+| Retry with lower temperature | On parse failure, retry at temp-0.1 | Same |
+| Markdown-to-Notion-blocks | h1-h3, bullets, quotes, links, etc. | Same converter, extended for callouts |
+| Dedup via URL set-diff | Compare against existing entries | Same |
+| Status state machine | New → Used | Extended: Idea → ... → Published |
 
-**Key difference from Josepha**: Josepha terminates at Notion (Instagram posts as Notion pages). T-0 adds the Ghost publication layer and the evaluation/ratchet feedback loop.
-
----
-
-## Notion Database Setup Checklist
-
-### Existing (no changes needed)
-- [x] Content Creation DB (`2afc0fdf-942d-813e-bafa-fe13acf0b35f`)
-
-### Properties to ADD to Content Creation DB
-
-| Property | Type | Default |
-|----------|------|---------|
-| Clarity Score | number | — |
-| Structure Score | number | — |
-| Accuracy Score | number | — |
-| Credibility Score | number | — |
-| Engagement Score | number | — |
-| Voice Score | number | — |
-| Actionability Score | number | — |
-| Composite Score | number | — |
-| Quality Tier | select (Excellent, Good, Acceptable, Below Standard, Poor) | — |
-| Evaluation Notes | rich_text | — |
-| Pipeline Version | rich_text | — |
-| Evaluated At | date | — |
-| Ghost ID | rich_text | — |
-| Content Type | select (Opinion, Resource, Case Study, Technical, Announcement) | — |
-| Source Type | select (RSS, Slack Rant, Manual, Mixed) | — |
-| Feed Items | relation → Feed Items DB | — |
-
-### New Databases to Create
-
-- [ ] **Sources DB** (child of Content Production project page)
-- [ ] **Feed Items DB** (child of Content Production project page)
-- [ ] **Pipeline Runs DB** (child of Content Production project page)
-
-See Phase 1 and Phase 8 sections for full property schemas.
-
----
-
-## Open Questions
-
-These require discussion before implementation:
-
-### OQ-1: n8n.t-0.co Readiness
-
-What credentials are already configured on `n8n.t-0.co`? What needs to be added? Is there an API key for remote access?
-
-**Impact**: Blocks all workflow development. If `n8n.t-0.co` isn't ready, we could temporarily build on `automation.kokal.cloud` and migrate later.
-
-### OQ-2: Slack Bot Token
-
-Does T-0's Slack workspace already have a bot with `channels:history` permission? If not, we need to create a Slack app + install it to the workspace.
-
-**Impact**: Blocks US-2 (Slack rant ingestion) and US-8 (rant augmentation).
-
-### OQ-3: Ghost Admin API Key
-
-Does `blog.t-0.co` already have a Custom Integration configured in Ghost Admin? We need the `{id}:{secret}` Admin API key.
-
-**Impact**: Blocks US-5 (Ghost publication).
-
-### OQ-4: Anthropic API Access
-
-Which Anthropic API key should the pipeline use? Aaron's personal key, or a T-0 organizational key? Need to ensure the key has access to `claude-sonnet-4-6` / `claude-opus-4-6`.
-
-**Impact**: Blocks US-1, US-3 (drafting and evaluation).
-
-### OQ-5: Google Drive Folder Structure for T-0
-
-Where should T-0 generated images be stored? In Aaron's personal Drive, a shared T-0 Drive, or a specific folder? Josepha uses `aaron@kokal-eventsupport.de` Drive; T-0 should probably use `aaron@t-0.co`.
-
-**Impact**: Affects WF-5 (image generation) Google OAuth credentials.
-
-### OQ-6: Notion Automation Webhooks
-
-Notion automations can fire webhooks on property changes, but this requires the Notion "Automations" feature (available on Plus plan or higher). Does the T-0 Notion workspace have this?
-
-**Alternative**: If Notion automations aren't available, use n8n polling (check Content Creation DB every 5 minutes for status changes). Less elegant but functional.
-
-### OQ-7: Ratchet Commit Permissions
-
-Should the ratchet loop be able to commit directly to this repo's `main` branch? Or should it create a PR for human review?
-
-**Recommendation**: Create a PR. Aaron reviews the proposed changes, merges if approved. This maintains human oversight over the "training" side of the autoresearch pattern.
-
-### OQ-8: Content Creation DB — Preserve or Rebuild?
-
-The existing Content Creation DB has entries dating back to 2025. Should we:
-a) Add new properties to the existing DB and work with it as-is
-b) Create a fresh "V2" DB with all properties from the start and migrate select entries
-
-**Recommendation**: (a) — extend the existing DB. The existing entries are valuable as backlog ideas.
-
-### OQ-9: Pipeline Prompt Language
-
-The Brand Writing Guide says "Deutsch zuerst" for content. Should the pipeline prompts themselves (system prompt, evaluation prompt) also be in German? Or English prompts producing German output?
-
-**Consideration**: Claude follows German instructions well, but English system prompts tend to produce more consistent instruction following. The Brand Writing Guide's AI Agent prompt is written in mixed (German terms, English structure).
-
-**Recommendation**: English system prompts with German-specific rules embedded. Output is always German.
+**Key difference**: Josepha terminates at Notion. T-0 adds Ghost publication, evaluation feedback loop, and the ratchet.
 
 ---
 
 ## Success Criteria
 
 ### SC-1: Draft Quality
-
-Pipeline-generated drafts consistently score ≥28 composite (Good tier) on the Content Evaluation Guide within the first month of operation. After 3 months with the ratchet active, average composite score reaches ≥32 (approaching Excellent).
+Pipeline-generated drafts consistently score ≥28 composite (Good tier) within the first month. After 3 months with ratchet active, average reaches ≥32.
 
 ### SC-2: Voice Authenticity
+Voice dimension averages ≥4.0. Aaron and Julien cannot reliably distinguish pipeline drafts from human-written drafts in a blind test (after review and minor edits).
 
-Voice dimension scores average ≥4.0 across all pipeline-generated drafts. Aaron and Julien cannot reliably distinguish pipeline drafts from human-written drafts in a blind test (after human review and minor edits).
+### SC-3: Existing Entry Processing
+All existing Content Creation DB entries processed to publishable quality within the first month. Publication schedule established.
 
-### SC-3: Source Coverage
+### SC-4: Source Coverage
+Pipeline surfaces ≥5 relevant topics per week, of which Aaron promotes ≥2 to drafting.
 
-Pipeline surfaces ≥5 relevant topics per week from tracked sources, of which Aaron promotes ≥2 to "Backlog" for drafting.
+### SC-5: Time Savings
+"Backlog" to "Pre Review" in under 10 minutes of pipeline execution, replacing 2-4 hours of manual work.
 
-### SC-4: Time Savings
+### SC-6: Publication Cadence
+2-4 blog posts per month (up from current sporadic cadence), all scoring ≥28 composite.
 
-End-to-end time from "Backlog" to "Pre Review" (draft + evaluation) is under 10 minutes of pipeline execution time, replacing what would be 2-4 hours of manual drafting and self-review.
+### SC-7: Newsletter
+Published posts automatically distributed via Ghost newsletter to subscribers.
 
-### SC-5: Publication Cadence
+### SC-8: Ratchet Improvement
+After 3 months, ratchet has proposed and applied ≥2 changes with demonstrable score improvement.
 
-T-0 publishes 2-4 blog posts per month (up from the current sporadic cadence), all scoring ≥28 composite.
-
-### SC-6: Ratchet Improvement
-
-After 3 months, the ratchet has successfully proposed and applied ≥2 prompt/parameter changes that demonstrably improved average composite scores.
-
-### SC-7: Zero Unauthorized Publications
-
-No content reaches Ghost in published state without Aaron's explicit action. Verify: all Ghost posts created by pipeline have `status: "draft"` until human publishes.
-
----
-
-## Implementation Phases (Suggested)
-
-| Phase | Scope | User Stories | Est. Effort |
-|-------|-------|-------------|-------------|
-| **Phase A** | Manual draft generation + evaluation | US-1, US-3, US-4 | Core pipeline: WF-2 + WF-3 |
-| **Phase B** | Source ingestion | US-2, US-8 | WF-1 with RSS + Slack |
-| **Phase C** | Ghost publication + images | US-5, US-6 | WF-4 + WF-5 |
-| **Phase D** | Self-improvement ratchet | US-7 | WF-6 (after enough data) |
-
-Phase A is the MVP — everything else builds on it. Start there.
+### SC-9: Zero Unauthorized Publications
+No content reaches Ghost in published state without Aaron's explicit action. All pipeline-created Ghost posts are `status: "draft"` or `status: "scheduled"` (with human-set date).
 
 ---
 
-## Addendum: Design Review Decisions (2026-03-24)
+## Implementation Phases
 
-This section captures decisions from the design review with Aaron. Once all open questions are resolved, the full spec will be rewritten to incorporate these changes.
+| Phase | Scope | Priority | Dependencies |
+|-------|-------|----------|-------------|
+| **Phase A: Core Pipeline** | WF-1 (all three branches). Process existing entries. | P0 — build first | OpenRouter credential on n8n.t-0.co, Ghost "Content Pipeline" key, Notion properties + button |
+| **Phase B: Source Ingestion** | WF-2 (RSS + Slack). Content Sources DB. Notes DB extensions. | P2 | Content Sources DB created, Slack bot permissions verified |
+| **Phase C: Image Gen Integration** | WF-3 improvements. Integration with WF-1 Ghost branch. | P2 | Existing image gen workflow on n8n.t-0.co |
+| **Phase D: Ghost Tag Overhaul** | Clean up 62 tags, establish taxonomy, update posts. | P1 (parallel with A) | Ghost API access |
+| **Phase E: Ratchet Activation** | WF-4. Score analysis, A/B testing, PR generation. | P3 — after data accumulates | 20+ evaluated drafts, 2-3 months of operation |
+| **Phase F: Newsletter Optimization** | Ghost newsletter config, sender identity, subscriber management. | P2 | Ghost admin access |
+| **Future: Social Distribution** | LinkedIn, other platforms. Downstream from Ghost. | Roadmap | Core pipeline stable, platform APIs |
 
-### DR-1: n8n Instance — CONFIRMED
+**Phase A is the immediate priority.** It unblocks processing of existing entries, which is the primary business reason for building this pipeline.
 
-`n8n.t-0.co` is correct. 29 active workflows already running, including AI image generation triggered from Content Creation DB.
+### Phase A Prerequisites
 
-### DR-2: LLM Access — OpenRouter + AI Agent Nodes (MAJOR CHANGE)
+1. **Create OpenRouter credential** on n8n.t-0.co (key from workspace `.env`)
+2. **Create Ghost "Content Pipeline" integration** in Ghost Admin → store in n8n credentials
+3. **Add new properties** to Content Creation DB (number, select, rich_text, date — all API-creatable)
+4. **Create "Run Pipeline" button** on Content Creation DB (requires Playwright MCP)
+5. **Set up Notion automation**: button click → webhook to n8n
+6. **Verify Status values** on Content Creation DB — add missing states if needed (Playwright MCP)
+7. **Build WF-1** on n8n.t-0.co
 
-**Original spec**: Raw HTTP Request nodes calling Anthropic/Perplexity APIs directly.
-**Revised**: Use n8n **AI Agent nodes** with **OpenRouter Chat Model** sub-node.
+---
 
-Architecture per AI step:
-```
-AI Agent node
-├── Chat Model: OpenRouter (claude-sonnet-4-6 via OpenRouter)
-├── Tools: [Perplexity HTTP tool, Jina Reader tool, Notion tool, Code tool, ...]
-├── Output Parser: Structured Output (for JSON responses like evaluation scores)
-└── Memory: None (single-shot tasks, not conversational)
-```
+## Design Decisions Reference
 
-Key implications:
-- **Perplexity is a tool**, not a model. The AI Agent calls Perplexity when it needs web-grounded research.
-- **Default model**: Claude Sonnet 4.6 for everything (drafting, evaluation, triage, research).
-- **OpenRouter credential**: `OPENROUTER_API_KEY` in workspace `.env`. Already configured on `automation.kokal.cloud` as "OpenRouter account" (`HLx6M67udFO3DgEf`). Needs to be set up on `n8n.t-0.co`.
-- **Agent has autonomy** over tool selection — it decides when to call Perplexity, Jina, etc.
+All 22 questions resolved during design review with Aaron (2026-03-24):
 
-### DR-3: Ghost — Single Working Key, URL Correction
-
-**Ghost URL**: `t-0.co` (NOT `blog.t-0.co` — base domain IS the Ghost instance)
-**Working key**: "T-0 MCP" custom integration
-- Key ID: `68c44700b9fe74000183817e`
-- Secret: `53071ab3f39b441293f50bf3b5f09d30a85782e95c770c5a85065daf26d3165b`
-- Currently stored on server only (MCP Hub + n8n env files)
-- 4 users: JJ (Owner), Aaron, Julien, Andreas (all Admin)
-- 10 posts, 62 tags (some duplicates), 1 newsletter
-
-### DR-4: Content Creation DB — Extend with Full Freedom
-
-Use existing DB (`2afc0fdf-942d-813e-bafa-fe13acf0b35f`). Breaking changes and extensive improvements allowed. Add all pipeline properties (evaluation scores, pipeline version, Ghost ID, etc.).
-
-Existing properties (from live DB):
-| Property | Type | Keep/Modify/Remove |
-|----------|------|-------------------|
-| Name | title | Keep |
-| Status | status | Keep (extend with pipeline states) |
-| Category Tags | multi_select | Keep |
-| URL | url | Keep |
-| Run Image Gen | button | Keep |
-| Due Date planned | date | Keep |
-| Pitch | rich_text | Keep |
-| Title | rich_text | Keep |
-| Related Content | relation | Keep |
-| Description | rich_text | Keep |
-| Notes | relation | Keep |
-| Publication Date actual | date | Keep |
-| Project | relation | Keep |
-| Target Audience Tags | multi_select | Keep |
-| Author | people | Keep |
-| Image Gen Description | rich_text | Keep |
-| Campaign | relation | Keep |
-| Platform | multi_select | Keep |
-| Image | files | Keep |
-| Lead | relation | Keep |
-| Reviewer | people | Keep |
-
-New properties to add:
-| Property | Type | Purpose |
-|----------|------|---------|
-| Run Pipeline | button | Single button triggering the main webhook |
-| Content Type | select | Auto-detected, human-confirmed |
-| Clarity Score | number | Eval dimension |
-| Structure Score | number | Eval dimension |
-| Accuracy Score | number | Eval dimension |
-| Credibility Score | number | Eval dimension |
-| Engagement Score | number | Eval dimension |
-| Voice Score | number | Eval dimension |
-| Actionability Score | number | Eval dimension |
-| Composite Score | number | Weighted total (max 40) |
-| Quality Tier | select | Excellent/Good/Acceptable/Below Standard/Poor |
-| Evaluation Notes | rich_text | Feedback summary |
-| Pipeline Version | rich_text | Git hash of config used |
-| Evaluated At | date | Last evaluation timestamp |
-| Ghost ID | rich_text | Ghost post ID after publication |
-| Source Type | select | RSS/Slack Rant/Manual/Mixed |
-| Feed Items | relation → Notes DB | Source material from Notes DB |
-
-### DR-5: Feed Items → Notes DB (MAJOR CHANGE)
-
-**Original spec**: New "Feed Items DB" for storing RSS articles and Slack rants.
-**Revised**: Use existing **Notes DB** (`2afc0fdf-942d-819a-b859-e69dcc48d67d`).
-
-The Notes DB already has:
-- Slack fields: `thread_ts_slack`, `channel_id_slack`, `contributors_slack`, `trigger reaction`
-- AI enrichment: `AI-Tags`, `AI-Category`, `AI Title`, `Summary`, `Description`
-- Origin tracking: `Origin` multi_select (values: `slack-to-notion`, `reprocessed`, `claude-code`, `Memos`, etc.)
-- **`Content Creation` relation** already linking to Content Creation DB
-- 28 properties total, mature schema
-
-For the pipeline:
-- RSS feed items get `Origin` = `rss-ingestion` (new value)
-- Slack discussions get `Origin` = `slack-auto-capture` (new value, distinct from manual `slack-to-notion`)
-- Add `Source` relation → Content Sources DB (new, for tracking which RSS source)
-- Use existing `Content Creation` relation to link notes to content entries
-
-### DR-6: Content Sources DB — New, in Main DB Pattern
-
-Create "T-0 Content Sources" page in T-0 Main DB (`2afc0fdf-942d-812e-b5db-f7595c7494e9`), with inline child database inside.
-
-Properties:
-| Property | Type | Purpose |
-|----------|------|---------|
-| Name | title | Source name |
-| URL | url | Homepage |
-| RSS URL | url | Feed URL |
-| Type | select | Blog/Newsletter/News/Research/Podcast |
-| Language | select | DE/EN |
-| Region | select | DACH/US/EU/Global |
-| Status | status | Active/Paused/Archived |
-| Weight | number | Priority 1-10 for triage |
-| Last Fetched | date | Last successful fetch |
-| Notes | rich_text | Why this source matters |
-
-### DR-7: No Pipeline Runs DB
-
-Use n8n's built-in execution history for monitoring. No separate Notion database needed.
-
-### DR-8: Slack Ingestion — Timer-Based, Smarter Filtering
-
-**Original spec**: Emoji-reaction-triggered Slack-to-Notion workflow.
-**Revised**: Timer-based (scheduled) ingestion replacing the existing workflow.
-
-Rules:
-- Run on schedule (e.g., every 6 hours or daily)
-- Fetch ALL messages from #tech-shit-talk since last run
-- **Filter**: 2+ replies from 2+ different people
-- Lightweight enrichment (just enough context to understand at a glance in Notion)
-- Store in Notes DB with `Origin` = `slack-auto-capture`
-- Existing emoji-reaction workflow becomes superfluous
-
-### DR-9: Single-Button Workflow Architecture (MAJOR CHANGE)
-
-**Original spec**: 6 separate n8n workflows (WF-1 through WF-6).
-**Revised**: One main n8n workflow with branching + one ingestion workflow.
-
-**Workflow 1: Content Pipeline** (single button trigger)
-```
-"Run Pipeline" button on Content Creation DB
-  → Webhook fires with all page properties
-  → Code node: inspect Status + Content Type + other properties
-  → Switch/IF branching:
-
-  Status = "Idea" or "Backlog":
-    → Research + Draft Generation + Evaluation
-    → Write draft to page, scores to properties
-    → Propose Content Type if not set
-
-  Status = "In Revision":
-    → Read Aaron's feedback comments
-    → Regenerate draft with feedback
-    → Re-evaluate
-
-  Status = "Pre Review" (or "Publishable"):
-    → Ghost publication flow
-    → Image generation (if needed)
-    → Update Notion with Ghost URL
-```
-
-**Workflow 2: Source Ingestion** (scheduled)
-```
-Schedule Trigger (e.g., Sunday 8AM + every 6h for Slack)
-  → RSS feed ingestion → Notes DB
-  → Slack #tech-shit-talk ingestion → Notes DB
-  → AI triage: select top items
-  → Create Content Creation entries as "Idea"
-```
-
-Fire-and-forget pattern: Button press gets immediate "processing" response, n8n works async and writes results back to Notion.
-
-### DR-10: Content Type — Auto-Detect + Propose
-
-Pipeline auto-detects content type (Opinion, Resource, Case Study, Technical, Announcement) and writes it to the Content Type property. Aaron reviews/changes it in Notion before pressing the button again to advance.
-
-## Remaining Open Questions (Q10-Q22)
-
-These still need Aaron's input:
-
-| # | Question | Options |
-|---|----------|---------|
-| Q10 | Ghost — draft or scheduled? | (a) Always draft, (b) Auto-schedule if Due Date set, (c) Always draft never schedule |
-| Q11 | Image gen — fold into main workflow or keep separate? | (a) Part of main workflow when Status=Publishable, (b) Separate workflow/button |
-| Q12 | Prompt language? | (a) English, (b) German, (c) Mixed |
-| Q13 | Where do prompt templates live? | (a) Notion wiki, (b) This repo, (c) Hardcoded in n8n, (d) Hybrid |
-| Q14 | Evaluation calibration examples? | Existing posts, synthetic examples, or skip for now? |
-| Q15 | Ratchet scope — what can it change? | Only prompts, or also weights/counts/criteria? |
-| Q16 | Newsletter sending? | In scope or out of scope? |
-| Q17 | LinkedIn post generation? | In scope or out of scope? |
-| Q18 | Process existing entries on go-live? | Yes or only new entries? |
-| Q19 | Ghost key storage? | (a) Add to .env+SOPS, (b) n8n credential only, (c) Both |
-| Q20 | How agentic? | Structured pipeline with focused agents, or full agentic with tool autonomy? |
-| Q21 | Notes DB — add `Source` relation + new Origin values? | Yes/No |
-| Q22 | Ghost tag cleanup? | Yes/No |
+| # | Decision | Resolution |
+|---|----------|------------|
+| DR-1 | n8n instance | `n8n.t-0.co` confirmed. 29 active workflows. |
+| DR-2 | LLM access | OpenRouter + AI Agent nodes. Claude Sonnet 4.6 default for all steps. |
+| DR-3 | Ghost URL | `t-0.co` (not `blog.t-0.co`). Dedicated "Content Pipeline" key. |
+| DR-4 | Content Creation DB | Extend existing with full freedom. Breaking changes allowed. |
+| DR-5 | Feed item storage | Use existing Notes DB (not new Feed Items DB). |
+| DR-6 | Content Sources DB | New, in T-0 Main DB pattern (page → child database). |
+| DR-7 | Pipeline monitoring | n8n execution history. No separate Pipeline Runs DB. |
+| DR-8 | Slack ingestion | Timer-based. 2+ replies from 2+ different people. Replaces emoji workflow. |
+| DR-9 | Workflow architecture | Single-button trigger (WF-1) + scheduled ingestion (WF-2) + modular image gen (WF-3). |
+| DR-10 | Content type | Auto-detect + propose. Human confirms before next pipeline run. |
+| DR-11 | Ghost publish logic | Conditional: Due Date planned set + Publishable → schedule. Otherwise → draft. |
+| DR-12 | Image generation | Modular workflow, triggered from pipeline or standalone button. May improve along the way. |
+| DR-13 | Prompt language | English system prompts, German output default. Switch for English path when needed. |
+| DR-14 | Config loading | Notion Resources DB for brand context (runtime). Repo for prompts/style params (versioned). |
+| DR-15 | Evaluation calibration | Deferred. Ratchet dormant for first weeks until enough data exists. |
+| DR-16 | Ratchet scope | Full autonomy: prompts, parameters, AND source selection. Versioned via PRs. |
+| DR-17 | Newsletter | In scope. Ghost native. Posts sent as newsletter on publish. |
+| DR-18 | Social distribution | Roadmap, not v1. Blog is canonical source, platforms downstream. |
+| DR-19 | Existing entries | High priority. This is why the pipeline is being built now. |
+| DR-20 | Ghost API key | Dedicated "Content Pipeline" integration. Stored in n8n credential management. |
+| DR-21 | Agent autonomy | Mostly deterministic. Agents get 2-3 tools max, clearly scoped tasks. No free planning. |
+| DR-22 | Notes DB changes | Add `Source` relation + new Origin values. Full trust to design properties. |
+| DR-23 | Ghost tag cleanup | Full overhaul authorized. Complete taxonomy redesign. No restrictions on destructive changes. |
