@@ -1,0 +1,46 @@
+# T-0 Content Pipeline — Style Parameters
+# Modifiable by the ratchet loop. Changes committed via PR with score data.
+# Each draft records which version was used (git hash in Pipeline Version property).
+
+voice:
+  opinion_strength: 0.8          # 0-1: how strongly to state opinions
+  personal_anecdote_required: true
+  show_the_work: true
+  german_first: true             # German output default
+  english_path_available: true   # Switch for English output when needed
+  max_anglicisms_per_paragraph: 3
+
+structure:
+  progressive_disclosure: true
+  technical_sections_marked: true
+  target_word_count:
+    opinion: 1500
+    resource: 1200
+    case_study: 1000
+    technical: 1800
+  max_word_count: 2500
+
+opening:
+  preferred_patterns:            # weighted selection (ratchet can adjust)
+    concrete_scenario: 0.3
+    personal_discovery: 0.3
+    provocative_observation: 0.25
+    news_hook: 0.15
+
+closing:
+  preferred_patterns:
+    actionable_next_step: 0.25
+    open_questions: 0.25
+    honest_limitation: 0.2
+    perspective_shift: 0.15
+    next_level: 0.15
+
+evidence:
+  min_external_sources: 2
+  cite_style: embedded_hyperlink
+  primary_sources_preferred: true
+
+cta:
+  type: soft
+  default_label: "Schreib uns"
+  opinion_pieces_cta: none
