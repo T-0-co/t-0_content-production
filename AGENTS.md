@@ -63,6 +63,39 @@ This project follows the **autoresearch pattern** (Karpathy, 2026): a ratchet lo
 
 The ratchet can modify pipeline prompts and source weighting. It cannot modify the evaluation rubric or publish without human review.
 
+## Spec-Driven Development
+
+This project uses [spec-kit](https://github.com/github/spec-kit) for structured development.
+
+### Quick Reference
+
+| Command | Description |
+|---------|-------------|
+| `/speckit.constitution` | Define project principles |
+| `/speckit.specify` | Create feature specification |
+| `/speckit.plan` | Create technical plan |
+| `/speckit.tasks` | Generate task breakdown |
+| `/speckit.implement` | Execute tasks |
+
+### Artifacts
+
+- **Constitution**: [.specify/memory/constitution.md](.specify/memory/constitution.md)
+- **Specs**: [.specify/specs/](.specify/specs/)
+- **Templates**: [.specify/templates/](.specify/templates/)
+
+### Source Documents
+
+Consolidated design specs and references from Notion and other projects:
+
+| Document | What It Contains |
+|----------|-----------------|
+| `docs/sources/blog-writing-assistant-spec.md` | 8-phase workflow spec (from Notion project) |
+| `docs/sources/ai-intelligence-pipeline-spec.md` | 5-layer source ingestion architecture (from Notion project) |
+| `docs/sources/content-evaluation-guide.md` | Scoring rubric with JSON schema for programmatic evaluation |
+| `docs/sources/blog-content-guide.md` | Structural templates per content type |
+| `docs/sources/josepha-pipeline-reference.md` | Working analog — fully operational content pipeline (different business) |
+| `docs/references/existing-infrastructure.md` | Map of all existing components, Notion IDs, and related projects |
+
 ---
 If something in this project surprises you, confuses you, frustrates you,
 or you find yourself having repeated problems with it — propose an update
