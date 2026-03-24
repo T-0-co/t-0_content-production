@@ -34,7 +34,7 @@ Key Notion pages (read these before working on pipeline logic):
 
 | Service | URL | Auth |
 |---------|-----|------|
-| Ghost CMS (blog) | `blog.t-0.co` | Ghost Admin API via MCP Hub (`mcp__claude_ai_KSMS_Hub__*`) |
+| Ghost CMS (blog) | `t-0.co` (API: `t-0.co/ghost/api/admin/`) | Ghost Admin API key: `T0_GHOST_ADMIN_KEY` in workspace `.env` |
 | n8n (T-0) | `n8n.t-0.co` | API key: `T0_N8N_API_KEY` in workspace `.env` |
 | Content Pipeline WF | n8n workflow `dJlw6US8gj6Do4Wf` | Webhook trigger (POST) |
 | Content Pipeline Dashboard | Notion page `32dc0fdf-942d-8135-bddf-e39bbb62d100` | — |
