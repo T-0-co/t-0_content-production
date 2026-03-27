@@ -20,7 +20,7 @@ Autonomous content pipeline: source ingestion (RSS + Slack #tech-shit-talk) → 
 | Notes | `2afc0fdf-942d-819a-b859-e69dcc48d67d` | `2afc0fdf-942d-812c-975d-000b9108667f` | Raw items + manual notes + Slack captures |
 | Reports | `2e8c0fdf-942d-8059-8aaa-d2fb0f6f3a4b` | `2e8c0fdf-942d-803b-b059-000bc702d4c3` | Periodic intelligence digests |
 
-MCP server: `mcp__claude_ai_Notion__*`
+MCP server: `mcp__notion__*`
 
 Key Notion pages (read these before working on pipeline logic):
 
@@ -41,7 +41,7 @@ Key Notion pages (read these before working on pipeline logic):
 | n8n (T-0) | `n8n.t-0.co` | API key: `T0_N8N_API_KEY` in workspace `.env` |
 | Content Pipeline WF | n8n workflow `dJlw6US8gj6Do4Wf` | Webhook trigger (POST) |
 | Content Pipeline Dashboard | Notion page `32dc0fdf-942d-8135-bddf-e39bbb62d100` | — |
-| AI Image Generation | n8n on `n8n.t-0.co` (workflow ID TBD) | Triggered via Notion button or webhook |
+| AI Image Generation | n8n workflow `2b6MMXh1Hz7NmbbR` on `n8n.t-0.co` | Notion automation webhook (fire-and-forget) |
 | Slack #tech-shit-talk | T-0 Slack workspace | MCP Hub `slack-rant-augmentation` skill |
 
 ### People
