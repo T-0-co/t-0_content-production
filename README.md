@@ -53,7 +53,7 @@ Automated topic discovery from external signals. Feeds new Ideas into the Conten
 
 The core engine. Takes a topic from Idea to Published through research, drafting, evaluation, and revision cycles.
 
-**Three branches, one workflow** (WF-1, 52 nodes on `n8n.t-0.co`):
+**Three branches, one workflow** (WF-1, 62 nodes on `n8n.t-0.co`):
 
 | Branch | Trigger condition | What happens |
 |--------|-------------------|--------------|
@@ -162,9 +162,13 @@ Notion-based control center showing pipeline state at a glance.
 - Quick links to all brand guides, rubric, GitHub repo, n8n workflow, Ghost CMS
 - Agent Behavior Panel showing all resources that influence pipeline output
 
-### 10. Claude Code Skill (planned)
+### 10. Claude Code Skill
 
-The same pipeline logic packaged as a conversational flow in Claude Code. Same prompts, same brand context, same evaluation — but executed interactively using Anthropic credits instead of OpenRouter through n8n. For when Aaron wants more control or wants to iterate on a draft conversationally.
+The same pipeline logic packaged as a conversational flow in Claude Code. Same prompts, same brand context, same evaluation — but executed interactively using Claude directly instead of OpenRouter through n8n. For when Aaron wants more control or wants to iterate on a draft conversationally.
+
+**Skill**: `.claude/skills/content-pipeline/SKILL.md`
+**Trigger**: `/content [topic or page ID]`
+**Phases**: Context Assembly → Research → Draft → Evaluate → Notion Update
 
 ## The autoresearch contract
 
@@ -185,7 +189,8 @@ The same pipeline logic packaged as a conversational flow in Claude Code. Same p
 | Research tools | Perplexity (deep search), Jina (article extraction) | n8n credentials |
 | Image generation | Gemini API → Google Drive | n8n workflow |
 | Pipeline config | This repo (prompts, style params) | GitHub `T-0-co/t-0_content-production` |
-| Source ingestion | n8n (planned WF-2) | `n8n.t-0.co` |
+| Source ingestion | n8n WF-2 (`U9YvA64bwIMur9Df`) | `n8n.t-0.co` |
+| Intelligence digest | n8n WF-3 (`Td8CIlyau6zkWHrI`) | `n8n.t-0.co` |
 
 ## Content lifecycle
 

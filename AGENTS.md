@@ -37,11 +37,14 @@ Key Notion pages (read these before working on pipeline logic):
 
 | Service | URL | Auth |
 |---------|-----|------|
-| Ghost CMS (blog) | `t-0.co` (API: `t-0.co/ghost/api/admin/`) | Ghost Admin API key: `T0_GHOST_ADMIN_KEY` in workspace `.env` |
-| n8n (T-0) | `n8n.t-0.co` | API key: `T0_N8N_API_KEY` in workspace `.env` |
-| Content Pipeline WF | n8n workflow `dJlw6US8gj6Do4Wf` | Webhook trigger (POST) |
+| Ghost CMS (blog) | `t-0.co` (API: `t-0.co/ghost/api/admin/`) | 1Password: `Ghost Admin API — T-0 (t-0.co)` in T-0 vault |
+| n8n (T-0) | `n8n.t-0.co` | 1Password: `n8n API Key — T-0 Instance` in T-0 vault (field: `credential`) |
+| Content Pipeline WF (WF-1) | n8n workflow `dJlw6US8gj6Do4Wf` | Webhook trigger (POST) |
+| Source Ingestion (WF-2) | n8n workflow `U9YvA64bwIMur9Df` on `n8n.t-0.co` | Schedule (Sun 08:00 CET) + webhook |
+| Intelligence Digest (WF-3) | n8n workflow `Td8CIlyau6zkWHrI` on `n8n.t-0.co` | Schedule (Mon 09:00 CET) + webhook |
 | Content Pipeline Dashboard | Notion page `32dc0fdf-942d-8135-bddf-e39bbb62d100` | — |
 | AI Image Generation | n8n workflow `2b6MMXh1Hz7NmbbR` on `n8n.t-0.co` | Notion automation webhook (fire-and-forget) |
+| Gemini Image Gen API | n8n workflow `tJkGnbUzEWPjN64s` on `n8n.t-0.co` | Webhook (called by Image Gen WF) |
 | Slack #tech-shit-talk | T-0 Slack workspace | MCP Hub `slack-rant-augmentation` skill |
 
 ### People

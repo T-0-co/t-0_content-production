@@ -35,7 +35,7 @@ The quality framework, Notion databases, Ghost CMS, image generation workflow, a
 | **Publishing** | Ghost CMS at `t-0.co` via MCP Hub | Running |
 | **Image generation** | n8n → Gemini API → Google Drive | Running |
 | **Source ingestion (Slack)** | MCP Hub `slack-rant-augmentation` | Running |
-| **Source ingestion (RSS)** | TBD — n8n RSS nodes or Miniflux | Not built |
+| **Source ingestion (RSS/Jina/Slack)** | n8n WF-2 on `n8n.t-0.co` | Running |
 | **Research/enrichment** | Perplexity, Jina, Claude | Available via MCP |
 | **Pipeline config** | This repo (prompts, source weights, parameters) | This project |
 | **Evaluation** | Content Evaluation Guide rubric (Notion) | In use, v1.0 |

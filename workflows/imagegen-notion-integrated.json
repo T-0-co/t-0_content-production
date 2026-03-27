@@ -1,7 +1,8 @@
 {
+  "id": "2b6MMXh1Hz7NmbbR",
   "name": "Image Creation Workflow from Notion blogpost drafts",
   "description": null,
-  "isArchived": false,
+  "active": true,
   "nodes": [
     {
       "parameters": {
@@ -11,6 +12,7 @@
           "responseMode": "responseNode"
         }
       },
+      "id": "47b69ae5-9e5f-4ff9-afaf-95b05a1fb01a",
       "name": "Webhook",
       "type": "n8n-nodes-base.webhook",
       "position": [
@@ -31,6 +33,7 @@
         "jsonBody": "={{ $json.requestBody }}",
         "options": {}
       },
+      "id": "e719925f-8812-498a-b108-74ccaac70bd5",
       "name": "HTTP Request",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -40,6 +43,7 @@
       "typeVersion": 4.3,
       "credentials": {
         "googlePalmApi": {
+          "id": "elsArEbMxg0NboPb",
           "name": "Aarons Gemini Api account"
         }
       }
@@ -47,10 +51,11 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=You are an expert art director creating image specifications for AI image generation. Your output must be a highly detailed visual description that produces a stunning lowpoly 3D illustration for T-0's blog.\n\n## T-0 Brand Illustration Guide\n{{ $json.illustrationGuide }}\n\n## Blog Content (for thematic context)\n{{ $json.blogpost_draft }}\n\n## Core Image Concept\n{{ $('Parameter Parser').first().json.output?.coreDescription || $json.image_gen_description || 'No specific description provided — create a compelling hero image based on the blog content above' }}\n\n## Reference Image Instructions\n{{ $('Parameter Parser').first().json.output?.referenceUsageInstruction ? 'IMPORTANT: When using the reference image, ' + $('Parameter Parser').first().json.output.referenceUsageInstruction : 'Use reference image for overall style matching if available.' }}\n\n## Format\n{{ $('Parameter Parser').first().json.output?.aspectRatio === '9:16' ? 'Portrait/vertical format (9:16) — use strong vertical composition with subject stacked in layers' : $('Parameter Parser').first().json.output?.aspectRatio === '1:1' ? 'Square format (1:1) — use centered or radial composition' : 'Widescreen landscape format (16:9) — use horizontal layering with clear foreground/midground/background separation' }}\n\n## YOUR TASK\nWrite a detailed image description following this exact structure. Every sentence must describe something VISIBLE in the final image.\n\n**SUBJECT & SCENE**: What is the primary subject? What objects, characters, or elements are present? Where are they positioned? Be specific — name shapes, forms, and spatial relationships.\n\n**COMPOSITION**: Camera angle (isometric, low-angle, bird's-eye, eye-level). Depth arrangement: what's in the foreground, midground, and background? How is negative space used? Where does the eye travel?\n\n**LIGHTING**: Direction (rim lighting from behind, soft top-down ambient, dramatic side lighting). Quality (diffuse and gentle — the T-0 standard). Color temperature of light sources. Highlight and shadow placement.\n\n**COLOR PALETTE**: Primary accents: cyan (#1fb1ea) and warm orange (#d36600) used sparingly on key elements. Base: deep space blacks and dark blues for backgrounds, muted slate grays for geometry. Avoid rainbow, neon, or oversaturated colors.\n\n**GEOMETRY & STYLE**: Lowpoly 3D with clearly visible triangular facets. Polygon density: 48-96 faces for large surfaces, 200-800 for detailed objects. Retro-futuristic feel. Clean, geometric silhouettes. No smooth/organic surfaces.\n\n**MOOD**: Hopeful, pioneering, professional. The image should feel like a window into an elegant technological future.\n\nCRITICAL RULES:\n- The image MUST visually represent the blog article's core concept or metaphor\n- Output 150-300 words of pure visual description\n- Do NOT include narrative text, explanations, or instructions to the viewer\n- Do NOT describe text, logos, or UI elements that should appear in the image\n- Think about what makes this image INTERESTING and UNIQUE — avoid generic space scenes",
+        "text": "=You are an expert art director creating image specifications for AI image generation. Your output must be a highly detailed visual description that produces a stunning lowpoly 3D illustration for T-0's blog.\n\n## T-0 Brand Illustration Guide\n{{ $json.illustrationGuide }}\n\n## Blog Content (for thematic context)\n{{ $json.blogpost_draft }}\n\n## Core Image Concept\n{{ $('Parameter Parser').first().json.output?.coreDescription || $json.image_gen_description || 'No specific description provided \u2014 create a compelling hero image based on the blog content above' }}\n\n## Reference Image Instructions\n{{ $('Parameter Parser').first().json.output?.referenceUsageInstruction ? 'IMPORTANT: When using the reference image, ' + $('Parameter Parser').first().json.output.referenceUsageInstruction : 'Use reference image for overall style matching if available.' }}\n\n## Format\n{{ $('Parameter Parser').first().json.output?.aspectRatio === '9:16' ? 'Portrait/vertical format (9:16) \u2014 use strong vertical composition with subject stacked in layers' : $('Parameter Parser').first().json.output?.aspectRatio === '1:1' ? 'Square format (1:1) \u2014 use centered or radial composition' : 'Widescreen landscape format (16:9) \u2014 use horizontal layering with clear foreground/midground/background separation' }}\n\n## YOUR TASK\nWrite a detailed image description following this exact structure. Every sentence must describe something VISIBLE in the final image.\n\n**SUBJECT & SCENE**: What is the primary subject? What objects, characters, or elements are present? Where are they positioned? Be specific \u2014 name shapes, forms, and spatial relationships.\n\n**COMPOSITION**: Camera angle (isometric, low-angle, bird's-eye, eye-level). Depth arrangement: what's in the foreground, midground, and background? How is negative space used? Where does the eye travel?\n\n**LIGHTING**: Direction (rim lighting from behind, soft top-down ambient, dramatic side lighting). Quality (diffuse and gentle \u2014 the T-0 standard). Color temperature of light sources. Highlight and shadow placement.\n\n**COLOR PALETTE**: Primary accents: cyan (#1fb1ea) and warm orange (#d36600) used sparingly on key elements. Base: deep space blacks and dark blues for backgrounds, muted slate grays for geometry. Avoid rainbow, neon, or oversaturated colors.\n\n**GEOMETRY & STYLE**: Lowpoly 3D with clearly visible triangular facets. Polygon density: 48-96 faces for large surfaces, 200-800 for detailed objects. Retro-futuristic feel. Clean, geometric silhouettes. No smooth/organic surfaces.\n\n**MOOD**: Hopeful, pioneering, professional. The image should feel like a window into an elegant technological future.\n\nCRITICAL RULES:\n- The image MUST visually represent the blog article's core concept or metaphor\n- Output 150-300 words of pure visual description\n- Do NOT include narrative text, explanations, or instructions to the viewer\n- Do NOT describe text, logos, or UI elements that should appear in the image\n- Think about what makes this image INTERESTING and UNIQUE \u2014 avoid generic space scenes",
         "hasOutputParser": true,
         "batching": {}
       },
+      "id": "5f4f7af6-9b49-4721-8064-51f03d996998",
       "name": "Basic LLM Chain",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "position": [
@@ -64,6 +69,7 @@
         "options": {},
         "model": "anthropic/claude-sonnet-4"
       },
+      "id": "cd07a6ab-fa1e-4490-82f6-3aedc65a684a",
       "name": "OpenRouter Chat Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "position": [
@@ -73,14 +79,16 @@
       "typeVersion": 1,
       "credentials": {
         "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
           "name": "Aarons OpenRouter account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\n// The raw Notion API returns blocks in a results array\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
+        "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\n// The raw Notion API returns blocks in a results array\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '\u2022 ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
       },
+      "id": "ddb898a6-3e91-4af6-be84-2a843ecad966",
       "name": "Code in JavaScript",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -91,8 +99,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
+        "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '\u2022 ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
       },
+      "id": "56c759eb-6139-42e0-b7cc-daa5dc830048",
       "name": "Code in JavaScript1",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -105,6 +114,7 @@
       "parameters": {
         "content": "Get Illustration Guide form notion and simplify"
       },
+      "id": "dc0996ad-344f-4493-ab95-8f8cf2ca8247",
       "name": "Sticky Note",
       "type": "n8n-nodes-base.stickyNote",
       "position": [
@@ -117,6 +127,7 @@
       "parameters": {
         "content": "Get full blogpost Draft"
       },
+      "id": "32cbcd30-7962-4057-83ce-e08d2b35a26e",
       "name": "Sticky Note1",
       "type": "n8n-nodes-base.stickyNote",
       "position": [
@@ -129,6 +140,7 @@
       "parameters": {
         "jsCode": "// Helper: Get webhook data from either Webhook or Webhook1\nconst getWebhookData = () => {\n  try { const w = $('Webhook'); if (w && w.first()) return w.first().json; } catch (e) {}\n  try { const w1 = $('Webhook1'); if (w1 && w1.first()) return w1.first().json; } catch (e) {}\n  return {};\n};\nconst webhookData = getWebhookData();\n\n// Get data from each branch\nconst illustrationGuide = $('Code in JavaScript').first().json.illustrationGuide;\nconst blogpost_draft = $('Code in JavaScript1').first().json.blogpost_draft;\n\n// Get properties from webhook data (supports both Webhook and Webhook1)\nconst props = webhookData.body?.data?.properties || {};\n\n// Extract relevant fields safely\nconst title = String(props.Name?.title?.[0]?.plain_text || '');\nconst description = String(props.Description?.rich_text?.[0]?.plain_text || '');\nconst imageGenDescription = String(props['Image Gen Description']?.rich_text?.[0]?.plain_text || '');\nconst pitch = String(props.Pitch?.rich_text?.[0]?.plain_text || '');\n\n// Build context string with only non-empty fields\nconst contextParts = [];\nif (title) contextParts.push('Title: ' + title);\nif (description) contextParts.push('Description: ' + description);\nif (pitch) contextParts.push('Pitch: ' + pitch);\n\nconst pageContext = contextParts.join('\\n');\n\nreturn [{\n  json: {\n    illustrationGuide: illustrationGuide,\n    blogpost_draft: blogpost_draft,\n    page_context: pageContext,\n    image_gen_description: imageGenDescription\n  }\n}];"
       },
+      "id": "a915e46f-213d-4fbc-ac84-c73cf0cb4450",
       "name": "Code in JavaScript2",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -141,6 +153,7 @@
       "parameters": {
         "numberInputs": 3
       },
+      "id": "82d58d5a-b210-49a5-b723-14d6edb9e273",
       "name": "Merge",
       "type": "n8n-nodes-base.merge",
       "position": [
@@ -152,8 +165,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get the image description from LLM\nconst imageDescription = $('Basic LLM Chain').first().json.output?.imageDescription || '';\n\n// Get parser output for aspect ratio and reference instructions\nconst parserOutput = $('Parameter Parser').first().json.output || {};\nconst aspectRatio = parserOutput.aspectRatio || '16:9';\nconst referenceUsageInstruction = parserOutput.referenceUsageInstruction || null;\n\n// Get illustration guide for context\nconst illustrationGuide = $('Code in JavaScript').first().json.illustrationGuide || '';\n\n// Get reference image from Google Drive Download node\nlet referenceImages = [];\ntry {\n  const downloadNode = $('Download file');\n  if (downloadNode && downloadNode.first().binary?.data) {\n    const binaryMeta = downloadNode.first().binary.data;\n    const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n    const base64Data = buffer.toString('base64');\n    referenceImages.push({\n      base64: base64Data,\n      mimeType: binaryMeta.mimeType || 'image/png'\n    });\n  }\n} catch (e) {\n  referenceImages = [];\n}\n\n// Build the parts array\nconst parts = [];\n\nif (referenceImages.length > 0) {\n  // === WITH REFERENCE IMAGE ===\n  for (const ref of referenceImages) {\n    parts.push({\n      inlineData: {\n        mimeType: ref.mimeType,\n        data: ref.base64\n      }\n    });\n  }\n\n  let refInstruction = referenceUsageInstruction\n    ? `Study the reference image above. Apply ${referenceUsageInstruction} from it to create a new image.`\n    : 'Study the reference image above. Match its exact visual style — color palette, lighting quality, texture treatment, polygon density, and artistic approach.';\n\n  parts.push({\n    text: `${refInstruction}\n\nGenerate a COMPLETELY NEW image (not a copy) based on the description below. The CONTENT must match the description. The STYLE must match the reference.\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements — maintain the lowpoly 3D aesthetic throughout\n- Do NOT use smooth or organic surfaces — all geometry should have visible triangular facets\n- Ensure the image has strong visual hierarchy with a clear focal point\n- Use depth (foreground/midground/background) to create dimensionality`\n  });\n\n} else {\n  // === WITHOUT REFERENCE IMAGE — full style specification ===\n  parts.push({\n    text: `Generate an image following these precise specifications:\n\nVISUAL STYLE (T-0 Brand — strictly enforce):\n- Lowpoly 3D render with CLEARLY VISIBLE triangular facets and geometric mesh on ALL surfaces\n- Space/lunar environment: deep dark background with subtle star field or distant nebula\n- Soft diffuse lighting with gentle, natural shadows — NO harsh cel-shading or mirror reflections\n- Brand accent colors used SPARINGLY on key elements: cyan (#1fb1ea) and warm orange (#d36600)\n- Base palette: deep space blacks (#0a0a12), dark slate blues (#1a1a2e), muted grays (#3a3a4a)\n- Polygon density: 48-96 visible triangular faces for large surfaces (terrain, sky), 200-800 for detailed objects\n- Mood: hopeful, pioneering, professional — like an elegant window into a technological future\n- Retro-futuristic aesthetic inspired by early CGI and space exploration art\n- Clean geometric silhouettes with intentional negative space\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements — maintain the stylized lowpoly 3D aesthetic throughout\n- Do NOT use smooth, organic, or curved surfaces — all geometry must have visible polygonal facets\n- Do NOT use neon colors, rainbow gradients, or oversaturated palettes\n- Do NOT create dark, dystopian, or threatening imagery — keep the mood positive and aspirational\n- Ensure strong visual hierarchy with a clear focal point and intentional composition\n- Use depth layers (foreground, midground, background) to create rich dimensionality`\n  });\n}\n\n// Build the complete request body\nconst requestBody = {\n  contents: [{\n    parts: parts\n  }],\n  generationConfig: {\n    responseModalities: [\"IMAGE\", \"TEXT\"],\n    imageConfig: {\n      aspectRatio: aspectRatio\n    }\n  }\n};\n\nreturn [{\n  json: {\n    requestBody,\n    _meta: {\n      hasReferenceImages: referenceImages.length > 0,\n      referenceImageCount: referenceImages.length,\n      descriptionLength: imageDescription.length,\n      aspectRatio: aspectRatio,\n      referenceUsageInstruction: referenceUsageInstruction\n    }\n  }\n}];"
+        "jsCode": "// Get the image description from LLM\nconst imageDescription = $('Basic LLM Chain').first().json.output?.imageDescription || '';\n\n// Get parser output for aspect ratio and reference instructions\nconst parserOutput = $('Parameter Parser').first().json.output || {};\nconst aspectRatio = parserOutput.aspectRatio || '16:9';\nconst referenceUsageInstruction = parserOutput.referenceUsageInstruction || null;\n\n// Get illustration guide for context\nconst illustrationGuide = $('Code in JavaScript').first().json.illustrationGuide || '';\n\n// Get reference image from Google Drive Download node\nlet referenceImages = [];\ntry {\n  const downloadNode = $('Download file');\n  if (downloadNode && downloadNode.first().binary?.data) {\n    const binaryMeta = downloadNode.first().binary.data;\n    const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n    const base64Data = buffer.toString('base64');\n    referenceImages.push({\n      base64: base64Data,\n      mimeType: binaryMeta.mimeType || 'image/png'\n    });\n  }\n} catch (e) {\n  referenceImages = [];\n}\n\n// Build the parts array\nconst parts = [];\n\nif (referenceImages.length > 0) {\n  // === WITH REFERENCE IMAGE ===\n  for (const ref of referenceImages) {\n    parts.push({\n      inlineData: {\n        mimeType: ref.mimeType,\n        data: ref.base64\n      }\n    });\n  }\n\n  let refInstruction = referenceUsageInstruction\n    ? `Study the reference image above. Apply ${referenceUsageInstruction} from it to create a new image.`\n    : 'Study the reference image above. Match its exact visual style \u2014 color palette, lighting quality, texture treatment, polygon density, and artistic approach.';\n\n  parts.push({\n    text: `${refInstruction}\n\nGenerate a COMPLETELY NEW image (not a copy) based on the description below. The CONTENT must match the description. The STYLE must match the reference.\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements \u2014 maintain the lowpoly 3D aesthetic throughout\n- Do NOT use smooth or organic surfaces \u2014 all geometry should have visible triangular facets\n- Ensure the image has strong visual hierarchy with a clear focal point\n- Use depth (foreground/midground/background) to create dimensionality`\n  });\n\n} else {\n  // === WITHOUT REFERENCE IMAGE \u2014 full style specification ===\n  parts.push({\n    text: `Generate an image following these precise specifications:\n\nVISUAL STYLE (T-0 Brand \u2014 strictly enforce):\n- Lowpoly 3D render with CLEARLY VISIBLE triangular facets and geometric mesh on ALL surfaces\n- Space/lunar environment: deep dark background with subtle star field or distant nebula\n- Soft diffuse lighting with gentle, natural shadows \u2014 NO harsh cel-shading or mirror reflections\n- Brand accent colors used SPARINGLY on key elements: cyan (#1fb1ea) and warm orange (#d36600)\n- Base palette: deep space blacks (#0a0a12), dark slate blues (#1a1a2e), muted grays (#3a3a4a)\n- Polygon density: 48-96 visible triangular faces for large surfaces (terrain, sky), 200-800 for detailed objects\n- Mood: hopeful, pioneering, professional \u2014 like an elegant window into a technological future\n- Retro-futuristic aesthetic inspired by early CGI and space exploration art\n- Clean geometric silhouettes with intentional negative space\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements \u2014 maintain the stylized lowpoly 3D aesthetic throughout\n- Do NOT use smooth, organic, or curved surfaces \u2014 all geometry must have visible polygonal facets\n- Do NOT use neon colors, rainbow gradients, or oversaturated palettes\n- Do NOT create dark, dystopian, or threatening imagery \u2014 keep the mood positive and aspirational\n- Ensure strong visual hierarchy with a clear focal point and intentional composition\n- Use depth layers (foreground, midground, background) to create rich dimensionality`\n  });\n}\n\n// Build the complete request body\nconst requestBody = {\n  contents: [{\n    parts: parts\n  }],\n  generationConfig: {\n    responseModalities: [\"IMAGE\", \"TEXT\"],\n    imageConfig: {\n      aspectRatio: aspectRatio\n    }\n  }\n};\n\nreturn [{\n  json: {\n    requestBody,\n    _meta: {\n      hasReferenceImages: referenceImages.length > 0,\n      referenceImageCount: referenceImages.length,\n      descriptionLength: imageDescription.length,\n      aspectRatio: aspectRatio,\n      referenceUsageInstruction: referenceUsageInstruction\n    }\n  }\n}];"
       },
+      "id": "1a973b42-a413-43ab-a7c5-cdc6e4bfb38b",
       "name": "Code in JavaScript3",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -166,6 +180,7 @@
       "parameters": {
         "jsCode": "// Helper: Get webhook data from either Webhook or Webhook1\nconst getWebhookData = () => {\n  try { const w = $('Webhook'); if (w && w.first()) return w.first().json; } catch (e) {}\n  try { const w1 = $('Webhook1'); if (w1 && w1.first()) return w1.first().json; } catch (e) {}\n  return {};\n};\nconst webhookData = getWebhookData();\n\nconst response = $input.first().json;\n\n// Get imageTitle from LLM output\nconst imageTitle = $('Basic LLM Chain').first().json.output?.imageTitle || 'untitled';\n\n// Get created_time from webhook (supports both Webhook and Webhook1)\nconst createdTime = webhookData.body?.data?.created_time;\nconst datePrefix = createdTime \n  ? new Date(createdTime).toISOString().slice(0, 10) // Gets YYYY-MM-DD\n  : new Date().toISOString().slice(0, 10);\n\n// Convert title to kebab-case slug\nconst titleSlug = imageTitle\n  .toLowerCase()\n  .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with hyphens\n  .replace(/^-|-$/g, '');        // Remove leading/trailing hyphens\n\n// Build filename\nconst fileName = `${datePrefix}_${titleSlug}.png`;\n\n// Gemini returns image in candidates[0].content.parts[].inlineData\nlet imageBase64 = null;\nlet mimeType = 'image/png';\n\nif (response.candidates && response.candidates[0]?.content?.parts) {\n  for (const part of response.candidates[0].content.parts) {\n    if (part.inlineData) {\n      imageBase64 = part.inlineData.data;\n      mimeType = part.inlineData.mimeType || 'image/png';\n      break;\n    }\n  }\n}\n\nif (!imageBase64) {\n  throw new Error('No image data found in Gemini response');\n}\n\nreturn [{\n  json: {\n    mimeType,\n    fileName,\n    imageTitle,\n    datePrefix\n  },\n  binary: {\n    image: {\n      data: imageBase64,\n      mimeType: mimeType,\n      fileName: fileName\n    }\n  }\n}];"
       },
+      "id": "6c271545-a5aa-45a2-9906-8ffd4545871f",
       "name": "Code in JavaScript4",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -192,6 +207,7 @@
         },
         "options": {}
       },
+      "id": "11100d69-4fb5-4d8e-86c1-1a38ddb68d6f",
       "name": "Upload file",
       "type": "n8n-nodes-base.googleDrive",
       "position": [
@@ -201,6 +217,7 @@
       "typeVersion": 3,
       "credentials": {
         "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
           "name": "Aarons T-0 Google Drive account"
         }
       }
@@ -209,6 +226,7 @@
       "parameters": {
         "jsonSchemaExample": "{\n  \"imageDescription\": \"A detailed description of the image scene including all visual elements, composition, lighting, and style specifications\",\n  \"imageTitle\": \"astronaut-lunar-stage-rocket-banner\"\n}"
       },
+      "id": "10159645-60c4-4138-acff-1e4b704fd435",
       "name": "Structured Output Parser",
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "position": [
@@ -233,6 +251,7 @@
         },
         "options": {}
       },
+      "id": "d1bb9ac4-f02b-4b13-866b-7adb25563f81",
       "name": "Share file",
       "type": "n8n-nodes-base.googleDrive",
       "position": [
@@ -242,6 +261,7 @@
       "typeVersion": 3,
       "credentials": {
         "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
           "name": "Aarons T-0 Google Drive account"
         }
       }
@@ -266,6 +286,7 @@
         "jsonBody": "={\n  \"filename\": \"{{ $json.fileName }}\",\n  \"content_type\": \"{{ $json.mimeType }}\"\n}",
         "options": {}
       },
+      "id": "411f531b-3e50-4f81-8f96-bda0c7c39d41",
       "name": "HTTP Request1",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -275,9 +296,11 @@
       "typeVersion": 4.3,
       "credentials": {
         "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
           "name": "Aarons Notion account - T-0 Scope"
         },
         "httpBasicAuth": {
+          "id": "eIWDFOZv74Pz9gdI",
           "name": "festiware lead researcher agent chat login"
         }
       }
@@ -310,6 +333,7 @@
         },
         "options": {}
       },
+      "id": "294b0977-8a67-405b-99ed-0945b20e9709",
       "name": "HTTP Request2",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -319,9 +343,11 @@
       "typeVersion": 4.3,
       "credentials": {
         "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
           "name": "Aarons Notion account - T-0 Scope"
         },
         "httpBasicAuth": {
+          "id": "eIWDFOZv74Pz9gdI",
           "name": "festiware lead researcher agent chat login"
         }
       }
@@ -330,6 +356,7 @@
       "parameters": {
         "jsCode": "const httpResponse = $('HTTP Request1').first().json;\nconst codeOutput = $('Code in JavaScript4').first();\n\nreturn [{\n  json: {\n    ...httpResponse,\n    ...codeOutput.json\n  },\n  binary: codeOutput.binary\n}];"
       },
+      "id": "623f861d-a4f6-40c4-a12c-d9a307b23be5",
       "name": "Code in JavaScript5",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -340,6 +367,7 @@
     },
     {
       "parameters": {},
+      "id": "95efb5c3-e8e2-4ddd-8d8d-a89812905eea",
       "name": "Merge1",
       "type": "n8n-nodes-base.merge",
       "position": [
@@ -368,6 +396,7 @@
         "jsonBody": "={\n  \"children\": [\n    {\n      \"type\": \"image\",\n      \"image\": {\n        \"type\": \"file_upload\",\n        \"file_upload\": {\n          \"id\": \"{{ $json.id }}\"\n        }\n      }\n    }\n  ]\n}",
         "options": {}
       },
+      "id": "de03228e-d6a6-4e4e-ae61-735259d500b7",
       "name": "HTTP Request3",
       "type": "n8n-nodes-base.httpRequest",
       "position": [
@@ -377,9 +406,11 @@
       "typeVersion": 4.3,
       "credentials": {
         "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
           "name": "Aarons Notion account - T-0 Scope"
         },
         "httpBasicAuth": {
+          "id": "eIWDFOZv74Pz9gdI",
           "name": "festiware lead researcher agent chat login"
         }
       }
@@ -393,6 +424,7 @@
           "systemMessage": "Select the best style reference image. If user provided a hint, prioritize matching that hint. Return ONLY the file ID in the imagebinary field."
         }
       },
+      "id": "bf118119-38ae-4bc3-862f-3f4798955da1",
       "name": "AI Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "position": [
@@ -406,6 +438,7 @@
         "options": {},
         "model": "anthropic/claude-haiku-4.5"
       },
+      "id": "a2d3ccc8-0ec0-4268-80ab-81d29543b045",
       "name": "OpenRouter Chat Model1",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "position": [
@@ -415,6 +448,7 @@
       "typeVersion": 1,
       "credentials": {
         "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
           "name": "Aarons OpenRouter account"
         }
       }
@@ -424,6 +458,7 @@
         "sessionIdType": "customKey",
         "sessionKey": "={{ $if($('Webhook').isExecuted, $('Webhook').first().json.body.data.id, $('Webhook1').first().json.body.data.id) }}"
       },
+      "id": "d24bbdcb-908f-4152-91a8-2e5bfc41c436",
       "name": "Simple Memory",
       "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
       "position": [
@@ -436,6 +471,7 @@
       "parameters": {
         "jsonSchemaExample": "{\n\t\"imagebinary\": \"binary of the image from google download\"\n}"
       },
+      "id": "0e6e4241-d6d9-4adc-9b22-d22e660be3d9",
       "name": "Structured Output Parser1",
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "position": [
@@ -458,6 +494,7 @@
         },
         "options": {}
       },
+      "id": "c1608428-5104-49c7-953a-2ec03b38d35a",
       "name": "Search files and folders",
       "type": "n8n-nodes-base.googleDrive",
       "position": [
@@ -467,6 +504,7 @@
       "typeVersion": 3,
       "credentials": {
         "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
           "name": "Aarons T-0 Google Drive account"
         }
       }
@@ -475,6 +513,7 @@
       "parameters": {
         "jsCode": "const items = $input.all();\nconst fileList = [];\n\nfor (const item of items) {\n  fileList.push(`- ${item.json.name} (ID: ${item.json.id})`);\n}\n\nreturn [{\n  json: {\n    fileList: fileList.join('\\n'),\n    fileCount: items.length\n  }\n}];"
       },
+      "id": "f58cc27d-df93-4c34-aef8-685131031dc9",
       "name": "Code in JavaScript6",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -493,6 +532,7 @@
         },
         "options": {}
       },
+      "id": "d147129f-21ad-4808-8c18-757f0a040541",
       "name": "Download file",
       "type": "n8n-nodes-base.googleDrive",
       "position": [
@@ -502,6 +542,7 @@
       "typeVersion": 3,
       "credentials": {
         "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
           "name": "Aarons T-0 Google Drive account"
         }
       }
@@ -509,10 +550,11 @@
     {
       "parameters": {
         "promptType": "define",
-        "text": "=You are parsing an image generation request for T-0's content blog. Extract structured parameters from the user's input.\n\n## USER INPUT\n{{ $json.image_gen_description }}\n\n## BLOG CONTEXT (use if user input is empty or vague)\n{{ $json.page_context }}\n\n## RULES\n- If user input is EMPTY or extremely short (under 10 words), infer a compelling image concept from the blog context (title, description, pitch). Create a vivid scene that visually represents the article's core theme.\n- Both German and English inputs are common. Parse either language.\n- Default to using a reference image (useReferenceImage: true) unless the user explicitly declines (\"no reference\", \"ohne Referenz\", \"from scratch\", \"fresh style\", \"eigener Stil\").\n- Default aspect ratio is \"16:9\" (widescreen). Only change if explicitly requested.\n- The coreDescription should describe WHAT to show in the image — a scene, objects, composition. Keep it to 1-3 sentences. Do NOT include style instructions (the brand guide handles that).\n\n## PARAMETERS TO EXTRACT\n1. **coreDescription** (required) — The visual scene to generate. Be specific about objects, setting, and arrangement. If user input is vague, enrich with blog context.\n2. **useReferenceImage** (boolean, default: true) — Whether to use a style reference image from our library.\n3. **referenceSearchHint** (string or null) — If user mentions wanting something \"like the moon image\" or \"similar to the rocket banner\", extract the hint.\n4. **referenceUsageInstruction** (string or null) — HOW to use the reference: \"color palette only\", \"exact style match\", \"just the lighting style\", etc.\n5. **aspectRatio** (string, default: \"16:9\") — \"16:9\" (landscape/widescreen/querformat), \"9:16\" (portrait/hochformat), \"1:1\" (square/quadratisch), \"4:3\", \"3:4\".",
+        "text": "=You are parsing an image generation request for T-0's content blog. Extract structured parameters from the user's input.\n\n## USER INPUT\n{{ $json.image_gen_description }}\n\n## BLOG CONTEXT (use if user input is empty or vague)\n{{ $json.page_context }}\n\n## RULES\n- If user input is EMPTY or extremely short (under 10 words), infer a compelling image concept from the blog context (title, description, pitch). Create a vivid scene that visually represents the article's core theme.\n- Both German and English inputs are common. Parse either language.\n- Default to using a reference image (useReferenceImage: true) unless the user explicitly declines (\"no reference\", \"ohne Referenz\", \"from scratch\", \"fresh style\", \"eigener Stil\").\n- Default aspect ratio is \"16:9\" (widescreen). Only change if explicitly requested.\n- The coreDescription should describe WHAT to show in the image \u2014 a scene, objects, composition. Keep it to 1-3 sentences. Do NOT include style instructions (the brand guide handles that).\n\n## PARAMETERS TO EXTRACT\n1. **coreDescription** (required) \u2014 The visual scene to generate. Be specific about objects, setting, and arrangement. If user input is vague, enrich with blog context.\n2. **useReferenceImage** (boolean, default: true) \u2014 Whether to use a style reference image from our library.\n3. **referenceSearchHint** (string or null) \u2014 If user mentions wanting something \"like the moon image\" or \"similar to the rocket banner\", extract the hint.\n4. **referenceUsageInstruction** (string or null) \u2014 HOW to use the reference: \"color palette only\", \"exact style match\", \"just the lighting style\", etc.\n5. **aspectRatio** (string, default: \"16:9\") \u2014 \"16:9\" (landscape/widescreen/querformat), \"9:16\" (portrait/hochformat), \"1:1\" (square/quadratisch), \"4:3\", \"3:4\".",
         "hasOutputParser": true,
         "batching": {}
       },
+      "id": "parser-agent-node",
       "name": "Parameter Parser",
       "type": "@n8n/n8n-nodes-langchain.chainLlm",
       "position": [
@@ -525,6 +567,7 @@
       "parameters": {
         "jsonSchemaExample": "{\n  \"coreDescription\": \"A rocket launching from the moon surface\",\n  \"useReferenceImage\": true,\n  \"referenceSearchHint\": null,\n  \"referenceUsageInstruction\": null,\n  \"aspectRatio\": \"16:9\"\n}"
       },
+      "id": "parser-output-schema",
       "name": "Parser Output Schema",
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "position": [
@@ -538,6 +581,7 @@
         "options": {},
         "model": "anthropic/claude-haiku-4.5"
       },
+      "id": "parser-llm-model",
       "name": "Parser LLM Model",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "position": [
@@ -547,6 +591,7 @@
       "typeVersion": 1,
       "credentials": {
         "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
           "name": "Aarons OpenRouter account"
         }
       }
@@ -575,6 +620,7 @@
         },
         "options": {}
       },
+      "id": "if-use-reference",
       "name": "IF: Use Reference?",
       "type": "n8n-nodes-base.if",
       "position": [
@@ -587,6 +633,7 @@
       "parameters": {
         "jsCode": "// No reference image path - pass through with empty reference\nconst parserOutput = $('Parameter Parser').first().json.output || {};\nconst llmOutput = $('Basic LLM Chain').first().json.output || {};\n\nreturn [{\n  json: {\n    skipReference: true,\n    imageDescription: llmOutput.imageDescription,\n    imageTitle: llmOutput.imageTitle,\n    aspectRatio: parserOutput.aspectRatio || '16:9'\n  }\n}];"
       },
+      "id": "no-reference-code",
       "name": "Skip Reference Path",
       "type": "n8n-nodes-base.code",
       "position": [
@@ -599,6 +646,7 @@
       "parameters": {
         "content": "## Parameter Parser\\n\\nExtracts structured parameters from natural language:\\n- useReferenceImage (default: true)\\n- referenceSearchHint\\n- referenceUsageInstruction\\n- aspectRatio (default: 16:9)"
       },
+      "id": "parser-sticky",
       "name": "Note: Parser",
       "type": "n8n-nodes-base.stickyNote",
       "position": [
@@ -614,6 +662,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
+      "id": "b1493f5e-2e40-407b-9505-c8747a17f7a9",
       "name": "Webhook1",
       "type": "n8n-nodes-base.webhook",
       "position": [
@@ -627,6 +676,7 @@
       "parameters": {
         "options": {}
       },
+      "id": "17392c33-e0d0-4a61-ace8-81e732cd25b9",
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "position": [
@@ -655,6 +705,7 @@
         "jsonBody": "={\n  \"properties\": {\n    \"Image\": {\n      \"files\": [{\n        \"name\": \"{{ $('Code in JavaScript4').first().json.fileName }}\",\n        \"external\": {\n          \"url\": \"https://drive.google.com/uc?id={{ $('Upload file').first().json.id }}&export=download\"\n        }\n      }]\n    }\n  }\n}",
         "options": {}
       },
+      "id": "set-image-prop",
       "name": "Set Image Property",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -664,6 +715,7 @@
       ],
       "credentials": {
         "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
           "name": "Aarons Notion account - T-0 Scope"
         }
       }
@@ -685,6 +737,7 @@
         },
         "options": {}
       },
+      "id": "fetch-illustration-guide",
       "name": "Fetch Illustration Guide",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -694,6 +747,7 @@
       ],
       "credentials": {
         "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
           "name": "Aarons Notion account - T-0 Scope"
         }
       }
@@ -715,6 +769,7 @@
         },
         "options": {}
       },
+      "id": "fetch-blogpost-blocks",
       "name": "Fetch Blogpost Blocks",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -724,9 +779,52 @@
       ],
       "credentials": {
         "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
           "name": "Aarons Notion account - T-0 Scope"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "guard-parent-type",
+              "leftValue": "={{ $json.body.data.parent.database_id }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "exists"
+              }
+            }
+          ],
+          "combinator": "and"
+        }
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -560,
+        160
+      ],
+      "id": "guard-is-db-page",
+      "name": "Is Database Page?"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        -416,
+        480
+      ],
+      "id": "noop-skip-subpage",
+      "name": "Skip (Sub-Page)"
     }
   ],
   "connections": {
@@ -756,19 +854,9 @@
       "main": [
         [
           {
-            "node": "Fetch Illustration Guide",
+            "node": "Is Database Page?",
             "type": "main",
             "index": 0
-          },
-          {
-            "node": "Fetch Blogpost Blocks",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Merge",
-            "type": "main",
-            "index": 1
           }
         ]
       ]
@@ -1080,17 +1168,7 @@
       "main": [
         [
           {
-            "node": "Fetch Blogpost Blocks",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Merge",
-            "type": "main",
-            "index": 1
-          },
-          {
-            "node": "Fetch Illustration Guide",
+            "node": "Is Database Page?",
             "type": "main",
             "index": 0
           }
@@ -1124,6 +1202,34 @@
         [
           {
             "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is Database Page?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Illustration Guide",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Blogpost Blocks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ],
+        [
+          {
+            "node": "Skip (Sub-Page)",
             "type": "main",
             "index": 0
           }
@@ -1200,7 +1306,7 @@
                     {
                       "type": "text",
                       "text": {
-                        "content": "Opinion Piece: Anthropics Vorsprung gegenüber anderen AI Labs. Plus: Warum wirtschaftlich sinnvolle KI-Nutzung wichtiger ist als maximale Ausschöpfung. Token-Allowance smart nutzen.",
+                        "content": "Opinion Piece: Anthropics Vorsprung gegen\u00fcber anderen AI Labs. Plus: Warum wirtschaftlich sinnvolle KI-Nutzung wichtiger ist als maximale Aussch\u00f6pfung. Token-Allowance smart nutzen.",
                         "link": null
                       },
                       "annotations": {
@@ -1211,7 +1317,7 @@
                         "code": false,
                         "color": "default"
                       },
-                      "plain_text": "Opinion Piece: Anthropics Vorsprung gegenüber anderen AI Labs. Plus: Warum wirtschaftlich sinnvolle KI-Nutzung wichtiger ist als maximale Ausschöpfung. Token-Allowance smart nutzen.",
+                      "plain_text": "Opinion Piece: Anthropics Vorsprung gegen\u00fcber anderen AI Labs. Plus: Warum wirtschaftlich sinnvolle KI-Nutzung wichtiger ist als maximale Aussch\u00f6pfung. Token-Allowance smart nutzen.",
                       "href": null
                     }
                   ]
@@ -1338,12 +1444,27 @@
       }
     ]
   },
-  "activeVersionId": "4cddf5c2-cc1a-4fe0-b30a-02df3e39d4da",
-  "versionCounter": 156,
+  "activeVersionId": "c652e56a-b563-42bd-a22e-9ef90a6d1a42",
+  "versionCounter": 163,
+  "triggerCount": 2,
+  "tags": [
+    {
+      "updatedAt": "2025-12-02T13:04:38.187Z",
+      "createdAt": "2025-12-02T13:04:38.187Z",
+      "id": "QMipwAovgVIxeZMc",
+      "name": "Notion"
+    },
+    {
+      "updatedAt": "2025-12-02T13:03:58.235Z",
+      "createdAt": "2025-12-02T13:03:58.235Z",
+      "id": "PYvzn3m01vtt0Aw9",
+      "name": "Aaron"
+    }
+  ],
   "activeVersion": {
-    "updatedAt": "2026-03-27T20:01:57.814Z",
-    "createdAt": "2026-03-27T20:01:57.814Z",
-    "versionId": "4cddf5c2-cc1a-4fe0-b30a-02df3e39d4da",
+    "updatedAt": "2026-03-27T21:36:11.031Z",
+    "createdAt": "2026-03-27T21:36:11.031Z",
+    "versionId": "c652e56a-b563-42bd-a22e-9ef90a6d1a42",
     "workflowId": "2b6MMXh1Hz7NmbbR",
     "nodes": [
       {
@@ -1393,7 +1514,7 @@
       {
         "parameters": {
           "promptType": "define",
-          "text": "=You are an expert art director creating image specifications for AI image generation. Your output must be a highly detailed visual description that produces a stunning lowpoly 3D illustration for T-0's blog.\n\n## T-0 Brand Illustration Guide\n{{ $json.illustrationGuide }}\n\n## Blog Content (for thematic context)\n{{ $json.blogpost_draft }}\n\n## Core Image Concept\n{{ $('Parameter Parser').first().json.output?.coreDescription || $json.image_gen_description || 'No specific description provided — create a compelling hero image based on the blog content above' }}\n\n## Reference Image Instructions\n{{ $('Parameter Parser').first().json.output?.referenceUsageInstruction ? 'IMPORTANT: When using the reference image, ' + $('Parameter Parser').first().json.output.referenceUsageInstruction : 'Use reference image for overall style matching if available.' }}\n\n## Format\n{{ $('Parameter Parser').first().json.output?.aspectRatio === '9:16' ? 'Portrait/vertical format (9:16) — use strong vertical composition with subject stacked in layers' : $('Parameter Parser').first().json.output?.aspectRatio === '1:1' ? 'Square format (1:1) — use centered or radial composition' : 'Widescreen landscape format (16:9) — use horizontal layering with clear foreground/midground/background separation' }}\n\n## YOUR TASK\nWrite a detailed image description following this exact structure. Every sentence must describe something VISIBLE in the final image.\n\n**SUBJECT & SCENE**: What is the primary subject? What objects, characters, or elements are present? Where are they positioned? Be specific — name shapes, forms, and spatial relationships.\n\n**COMPOSITION**: Camera angle (isometric, low-angle, bird's-eye, eye-level). Depth arrangement: what's in the foreground, midground, and background? How is negative space used? Where does the eye travel?\n\n**LIGHTING**: Direction (rim lighting from behind, soft top-down ambient, dramatic side lighting). Quality (diffuse and gentle — the T-0 standard). Color temperature of light sources. Highlight and shadow placement.\n\n**COLOR PALETTE**: Primary accents: cyan (#1fb1ea) and warm orange (#d36600) used sparingly on key elements. Base: deep space blacks and dark blues for backgrounds, muted slate grays for geometry. Avoid rainbow, neon, or oversaturated colors.\n\n**GEOMETRY & STYLE**: Lowpoly 3D with clearly visible triangular facets. Polygon density: 48-96 faces for large surfaces, 200-800 for detailed objects. Retro-futuristic feel. Clean, geometric silhouettes. No smooth/organic surfaces.\n\n**MOOD**: Hopeful, pioneering, professional. The image should feel like a window into an elegant technological future.\n\nCRITICAL RULES:\n- The image MUST visually represent the blog article's core concept or metaphor\n- Output 150-300 words of pure visual description\n- Do NOT include narrative text, explanations, or instructions to the viewer\n- Do NOT describe text, logos, or UI elements that should appear in the image\n- Think about what makes this image INTERESTING and UNIQUE — avoid generic space scenes",
+          "text": "=You are an expert art director creating image specifications for AI image generation. Your output must be a highly detailed visual description that produces a stunning lowpoly 3D illustration for T-0's blog.\n\n## T-0 Brand Illustration Guide\n{{ $json.illustrationGuide }}\n\n## Blog Content (for thematic context)\n{{ $json.blogpost_draft }}\n\n## Core Image Concept\n{{ $('Parameter Parser').first().json.output?.coreDescription || $json.image_gen_description || 'No specific description provided \u2014 create a compelling hero image based on the blog content above' }}\n\n## Reference Image Instructions\n{{ $('Parameter Parser').first().json.output?.referenceUsageInstruction ? 'IMPORTANT: When using the reference image, ' + $('Parameter Parser').first().json.output.referenceUsageInstruction : 'Use reference image for overall style matching if available.' }}\n\n## Format\n{{ $('Parameter Parser').first().json.output?.aspectRatio === '9:16' ? 'Portrait/vertical format (9:16) \u2014 use strong vertical composition with subject stacked in layers' : $('Parameter Parser').first().json.output?.aspectRatio === '1:1' ? 'Square format (1:1) \u2014 use centered or radial composition' : 'Widescreen landscape format (16:9) \u2014 use horizontal layering with clear foreground/midground/background separation' }}\n\n## YOUR TASK\nWrite a detailed image description following this exact structure. Every sentence must describe something VISIBLE in the final image.\n\n**SUBJECT & SCENE**: What is the primary subject? What objects, characters, or elements are present? Where are they positioned? Be specific \u2014 name shapes, forms, and spatial relationships.\n\n**COMPOSITION**: Camera angle (isometric, low-angle, bird's-eye, eye-level). Depth arrangement: what's in the foreground, midground, and background? How is negative space used? Where does the eye travel?\n\n**LIGHTING**: Direction (rim lighting from behind, soft top-down ambient, dramatic side lighting). Quality (diffuse and gentle \u2014 the T-0 standard). Color temperature of light sources. Highlight and shadow placement.\n\n**COLOR PALETTE**: Primary accents: cyan (#1fb1ea) and warm orange (#d36600) used sparingly on key elements. Base: deep space blacks and dark blues for backgrounds, muted slate grays for geometry. Avoid rainbow, neon, or oversaturated colors.\n\n**GEOMETRY & STYLE**: Lowpoly 3D with clearly visible triangular facets. Polygon density: 48-96 faces for large surfaces, 200-800 for detailed objects. Retro-futuristic feel. Clean, geometric silhouettes. No smooth/organic surfaces.\n\n**MOOD**: Hopeful, pioneering, professional. The image should feel like a window into an elegant technological future.\n\nCRITICAL RULES:\n- The image MUST visually represent the blog article's core concept or metaphor\n- Output 150-300 words of pure visual description\n- Do NOT include narrative text, explanations, or instructions to the viewer\n- Do NOT describe text, logos, or UI elements that should appear in the image\n- Think about what makes this image INTERESTING and UNIQUE \u2014 avoid generic space scenes",
           "hasOutputParser": true,
           "batching": {}
         },
@@ -1428,7 +1549,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\n// The raw Notion API returns blocks in a results array\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
+          "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\n// The raw Notion API returns blocks in a results array\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '\u2022 ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
         },
         "id": "ddb898a6-3e91-4af6-be84-2a843ecad966",
         "name": "Code in JavaScript",
@@ -1441,7 +1562,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
+          "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '\u2022 ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
         },
         "id": "56c759eb-6139-42e0-b7cc-daa5dc830048",
         "name": "Code in JavaScript1",
@@ -1507,7 +1628,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Get the image description from LLM\nconst imageDescription = $('Basic LLM Chain').first().json.output?.imageDescription || '';\n\n// Get parser output for aspect ratio and reference instructions\nconst parserOutput = $('Parameter Parser').first().json.output || {};\nconst aspectRatio = parserOutput.aspectRatio || '16:9';\nconst referenceUsageInstruction = parserOutput.referenceUsageInstruction || null;\n\n// Get illustration guide for context\nconst illustrationGuide = $('Code in JavaScript').first().json.illustrationGuide || '';\n\n// Get reference image from Google Drive Download node\nlet referenceImages = [];\ntry {\n  const downloadNode = $('Download file');\n  if (downloadNode && downloadNode.first().binary?.data) {\n    const binaryMeta = downloadNode.first().binary.data;\n    const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n    const base64Data = buffer.toString('base64');\n    referenceImages.push({\n      base64: base64Data,\n      mimeType: binaryMeta.mimeType || 'image/png'\n    });\n  }\n} catch (e) {\n  referenceImages = [];\n}\n\n// Build the parts array\nconst parts = [];\n\nif (referenceImages.length > 0) {\n  // === WITH REFERENCE IMAGE ===\n  for (const ref of referenceImages) {\n    parts.push({\n      inlineData: {\n        mimeType: ref.mimeType,\n        data: ref.base64\n      }\n    });\n  }\n\n  let refInstruction = referenceUsageInstruction\n    ? `Study the reference image above. Apply ${referenceUsageInstruction} from it to create a new image.`\n    : 'Study the reference image above. Match its exact visual style — color palette, lighting quality, texture treatment, polygon density, and artistic approach.';\n\n  parts.push({\n    text: `${refInstruction}\n\nGenerate a COMPLETELY NEW image (not a copy) based on the description below. The CONTENT must match the description. The STYLE must match the reference.\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements — maintain the lowpoly 3D aesthetic throughout\n- Do NOT use smooth or organic surfaces — all geometry should have visible triangular facets\n- Ensure the image has strong visual hierarchy with a clear focal point\n- Use depth (foreground/midground/background) to create dimensionality`\n  });\n\n} else {\n  // === WITHOUT REFERENCE IMAGE — full style specification ===\n  parts.push({\n    text: `Generate an image following these precise specifications:\n\nVISUAL STYLE (T-0 Brand — strictly enforce):\n- Lowpoly 3D render with CLEARLY VISIBLE triangular facets and geometric mesh on ALL surfaces\n- Space/lunar environment: deep dark background with subtle star field or distant nebula\n- Soft diffuse lighting with gentle, natural shadows — NO harsh cel-shading or mirror reflections\n- Brand accent colors used SPARINGLY on key elements: cyan (#1fb1ea) and warm orange (#d36600)\n- Base palette: deep space blacks (#0a0a12), dark slate blues (#1a1a2e), muted grays (#3a3a4a)\n- Polygon density: 48-96 visible triangular faces for large surfaces (terrain, sky), 200-800 for detailed objects\n- Mood: hopeful, pioneering, professional — like an elegant window into a technological future\n- Retro-futuristic aesthetic inspired by early CGI and space exploration art\n- Clean geometric silhouettes with intentional negative space\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements — maintain the stylized lowpoly 3D aesthetic throughout\n- Do NOT use smooth, organic, or curved surfaces — all geometry must have visible polygonal facets\n- Do NOT use neon colors, rainbow gradients, or oversaturated palettes\n- Do NOT create dark, dystopian, or threatening imagery — keep the mood positive and aspirational\n- Ensure strong visual hierarchy with a clear focal point and intentional composition\n- Use depth layers (foreground, midground, background) to create rich dimensionality`\n  });\n}\n\n// Build the complete request body\nconst requestBody = {\n  contents: [{\n    parts: parts\n  }],\n  generationConfig: {\n    responseModalities: [\"IMAGE\", \"TEXT\"],\n    imageConfig: {\n      aspectRatio: aspectRatio\n    }\n  }\n};\n\nreturn [{\n  json: {\n    requestBody,\n    _meta: {\n      hasReferenceImages: referenceImages.length > 0,\n      referenceImageCount: referenceImages.length,\n      descriptionLength: imageDescription.length,\n      aspectRatio: aspectRatio,\n      referenceUsageInstruction: referenceUsageInstruction\n    }\n  }\n}];"
+          "jsCode": "// Get the image description from LLM\nconst imageDescription = $('Basic LLM Chain').first().json.output?.imageDescription || '';\n\n// Get parser output for aspect ratio and reference instructions\nconst parserOutput = $('Parameter Parser').first().json.output || {};\nconst aspectRatio = parserOutput.aspectRatio || '16:9';\nconst referenceUsageInstruction = parserOutput.referenceUsageInstruction || null;\n\n// Get illustration guide for context\nconst illustrationGuide = $('Code in JavaScript').first().json.illustrationGuide || '';\n\n// Get reference image from Google Drive Download node\nlet referenceImages = [];\ntry {\n  const downloadNode = $('Download file');\n  if (downloadNode && downloadNode.first().binary?.data) {\n    const binaryMeta = downloadNode.first().binary.data;\n    const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\n    const base64Data = buffer.toString('base64');\n    referenceImages.push({\n      base64: base64Data,\n      mimeType: binaryMeta.mimeType || 'image/png'\n    });\n  }\n} catch (e) {\n  referenceImages = [];\n}\n\n// Build the parts array\nconst parts = [];\n\nif (referenceImages.length > 0) {\n  // === WITH REFERENCE IMAGE ===\n  for (const ref of referenceImages) {\n    parts.push({\n      inlineData: {\n        mimeType: ref.mimeType,\n        data: ref.base64\n      }\n    });\n  }\n\n  let refInstruction = referenceUsageInstruction\n    ? `Study the reference image above. Apply ${referenceUsageInstruction} from it to create a new image.`\n    : 'Study the reference image above. Match its exact visual style \u2014 color palette, lighting quality, texture treatment, polygon density, and artistic approach.';\n\n  parts.push({\n    text: `${refInstruction}\n\nGenerate a COMPLETELY NEW image (not a copy) based on the description below. The CONTENT must match the description. The STYLE must match the reference.\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements \u2014 maintain the lowpoly 3D aesthetic throughout\n- Do NOT use smooth or organic surfaces \u2014 all geometry should have visible triangular facets\n- Ensure the image has strong visual hierarchy with a clear focal point\n- Use depth (foreground/midground/background) to create dimensionality`\n  });\n\n} else {\n  // === WITHOUT REFERENCE IMAGE \u2014 full style specification ===\n  parts.push({\n    text: `Generate an image following these precise specifications:\n\nVISUAL STYLE (T-0 Brand \u2014 strictly enforce):\n- Lowpoly 3D render with CLEARLY VISIBLE triangular facets and geometric mesh on ALL surfaces\n- Space/lunar environment: deep dark background with subtle star field or distant nebula\n- Soft diffuse lighting with gentle, natural shadows \u2014 NO harsh cel-shading or mirror reflections\n- Brand accent colors used SPARINGLY on key elements: cyan (#1fb1ea) and warm orange (#d36600)\n- Base palette: deep space blacks (#0a0a12), dark slate blues (#1a1a2e), muted grays (#3a3a4a)\n- Polygon density: 48-96 visible triangular faces for large surfaces (terrain, sky), 200-800 for detailed objects\n- Mood: hopeful, pioneering, professional \u2014 like an elegant window into a technological future\n- Retro-futuristic aesthetic inspired by early CGI and space exploration art\n- Clean geometric silhouettes with intentional negative space\n\nIMAGE DESCRIPTION:\n${imageDescription}\n\nIMPORTANT CONSTRAINTS:\n- Do NOT include any text, words, letters, numbers, watermarks, or logos in the image\n- Do NOT render photorealistic elements \u2014 maintain the stylized lowpoly 3D aesthetic throughout\n- Do NOT use smooth, organic, or curved surfaces \u2014 all geometry must have visible polygonal facets\n- Do NOT use neon colors, rainbow gradients, or oversaturated palettes\n- Do NOT create dark, dystopian, or threatening imagery \u2014 keep the mood positive and aspirational\n- Ensure strong visual hierarchy with a clear focal point and intentional composition\n- Use depth layers (foreground, midground, background) to create rich dimensionality`\n  });\n}\n\n// Build the complete request body\nconst requestBody = {\n  contents: [{\n    parts: parts\n  }],\n  generationConfig: {\n    responseModalities: [\"IMAGE\", \"TEXT\"],\n    imageConfig: {\n      aspectRatio: aspectRatio\n    }\n  }\n};\n\nreturn [{\n  json: {\n    requestBody,\n    _meta: {\n      hasReferenceImages: referenceImages.length > 0,\n      referenceImageCount: referenceImages.length,\n      descriptionLength: imageDescription.length,\n      aspectRatio: aspectRatio,\n      referenceUsageInstruction: referenceUsageInstruction\n    }\n  }\n}];"
         },
         "id": "1a973b42-a413-43ab-a7c5-cdc6e4bfb38b",
         "name": "Code in JavaScript3",
@@ -1892,7 +2013,7 @@
       {
         "parameters": {
           "promptType": "define",
-          "text": "=You are parsing an image generation request for T-0's content blog. Extract structured parameters from the user's input.\n\n## USER INPUT\n{{ $json.image_gen_description }}\n\n## BLOG CONTEXT (use if user input is empty or vague)\n{{ $json.page_context }}\n\n## RULES\n- If user input is EMPTY or extremely short (under 10 words), infer a compelling image concept from the blog context (title, description, pitch). Create a vivid scene that visually represents the article's core theme.\n- Both German and English inputs are common. Parse either language.\n- Default to using a reference image (useReferenceImage: true) unless the user explicitly declines (\"no reference\", \"ohne Referenz\", \"from scratch\", \"fresh style\", \"eigener Stil\").\n- Default aspect ratio is \"16:9\" (widescreen). Only change if explicitly requested.\n- The coreDescription should describe WHAT to show in the image — a scene, objects, composition. Keep it to 1-3 sentences. Do NOT include style instructions (the brand guide handles that).\n\n## PARAMETERS TO EXTRACT\n1. **coreDescription** (required) — The visual scene to generate. Be specific about objects, setting, and arrangement. If user input is vague, enrich with blog context.\n2. **useReferenceImage** (boolean, default: true) — Whether to use a style reference image from our library.\n3. **referenceSearchHint** (string or null) — If user mentions wanting something \"like the moon image\" or \"similar to the rocket banner\", extract the hint.\n4. **referenceUsageInstruction** (string or null) — HOW to use the reference: \"color palette only\", \"exact style match\", \"just the lighting style\", etc.\n5. **aspectRatio** (string, default: \"16:9\") — \"16:9\" (landscape/widescreen/querformat), \"9:16\" (portrait/hochformat), \"1:1\" (square/quadratisch), \"4:3\", \"3:4\".",
+          "text": "=You are parsing an image generation request for T-0's content blog. Extract structured parameters from the user's input.\n\n## USER INPUT\n{{ $json.image_gen_description }}\n\n## BLOG CONTEXT (use if user input is empty or vague)\n{{ $json.page_context }}\n\n## RULES\n- If user input is EMPTY or extremely short (under 10 words), infer a compelling image concept from the blog context (title, description, pitch). Create a vivid scene that visually represents the article's core theme.\n- Both German and English inputs are common. Parse either language.\n- Default to using a reference image (useReferenceImage: true) unless the user explicitly declines (\"no reference\", \"ohne Referenz\", \"from scratch\", \"fresh style\", \"eigener Stil\").\n- Default aspect ratio is \"16:9\" (widescreen). Only change if explicitly requested.\n- The coreDescription should describe WHAT to show in the image \u2014 a scene, objects, composition. Keep it to 1-3 sentences. Do NOT include style instructions (the brand guide handles that).\n\n## PARAMETERS TO EXTRACT\n1. **coreDescription** (required) \u2014 The visual scene to generate. Be specific about objects, setting, and arrangement. If user input is vague, enrich with blog context.\n2. **useReferenceImage** (boolean, default: true) \u2014 Whether to use a style reference image from our library.\n3. **referenceSearchHint** (string or null) \u2014 If user mentions wanting something \"like the moon image\" or \"similar to the rocket banner\", extract the hint.\n4. **referenceUsageInstruction** (string or null) \u2014 HOW to use the reference: \"color palette only\", \"exact style match\", \"just the lighting style\", etc.\n5. **aspectRatio** (string, default: \"16:9\") \u2014 \"16:9\" (landscape/widescreen/querformat), \"9:16\" (portrait/hochformat), \"1:1\" (square/quadratisch), \"4:3\", \"3:4\".",
           "hasOutputParser": true,
           "batching": {}
         },
@@ -2125,6 +2246,48 @@
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "guard-parent-type",
+                "leftValue": "={{ $json.body.data.parent.database_id }}",
+                "rightValue": "",
+                "operator": {
+                  "type": "string",
+                  "operation": "exists"
+                }
+              }
+            ],
+            "combinator": "and"
+          }
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          -560,
+          160
+        ],
+        "id": "guard-is-db-page",
+        "name": "Is Database Page?"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.noOp",
+        "typeVersion": 1,
+        "position": [
+          -416,
+          480
+        ],
+        "id": "noop-skip-subpage",
+        "name": "Skip (Sub-Page)"
       }
     ],
     "connections": {
@@ -2154,19 +2317,9 @@
         "main": [
           [
             {
-              "node": "Fetch Illustration Guide",
+              "node": "Is Database Page?",
               "type": "main",
               "index": 0
-            },
-            {
-              "node": "Fetch Blogpost Blocks",
-              "type": "main",
-              "index": 0
-            },
-            {
-              "node": "Merge",
-              "type": "main",
-              "index": 1
             }
           ]
         ]
@@ -2478,17 +2631,7 @@
         "main": [
           [
             {
-              "node": "Fetch Blogpost Blocks",
-              "type": "main",
-              "index": 0
-            },
-            {
-              "node": "Merge",
-              "type": "main",
-              "index": 1
-            },
-            {
-              "node": "Fetch Illustration Guide",
+              "node": "Is Database Page?",
               "type": "main",
               "index": 0
             }
@@ -2527,6 +2670,34 @@
             }
           ]
         ]
+      },
+      "Is Database Page?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Illustration Guide",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Blogpost Blocks",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Merge",
+              "type": "main",
+              "index": 1
+            }
+          ],
+          [
+            {
+              "node": "Skip (Sub-Page)",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "T-0 Admin",
@@ -2535,10 +2706,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-27T20:01:58.099Z",
-        "id": 540,
+        "createdAt": "2026-03-27T21:36:11.535Z",
+        "id": 562,
         "workflowId": "2b6MMXh1Hz7NmbbR",
-        "versionId": "4cddf5c2-cc1a-4fe0-b30a-02df3e39d4da",
+        "versionId": "c652e56a-b563-42bd-a22e-9ef90a6d1a42",
         "event": "activated",
         "userId": "f098d803-bf77-453b-abac-36b3806f4345"
       }
