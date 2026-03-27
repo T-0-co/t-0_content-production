@@ -79,32 +79,7 @@
     },
     {
       "parameters": {
-        "resource": "block",
-        "operation": "getAll",
-        "blockId": {
-          "__rl": true,
-          "mode": "url",
-          "value": "https://www.notion.so/schallvagabunden/T-0-Brand-Image-Style-Description-2d5c0fdf942d80e6b716e8b468bea7f1?source=copy_link"
-        },
-        "returnAll": true,
-        "fetchNestedBlocks": true
-      },
-      "name": "Get many child blocks",
-      "type": "n8n-nodes-base.notion",
-      "position": [
-        -416,
-        304
-      ],
-      "typeVersion": 2.2,
-      "credentials": {
-        "notionApi": {
-          "name": "Aarons Notion account - T-0 Scope"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const blocks = $input.all();\nconst lines = [];\n\nfor (const item of blocks) {\n  const block = item.json;\n  const type = block.type;\n  \n  // Direct content field (simplified output)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n  \n  // Handle different block types\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' : \n                        type === 'numbered_list_item' ? '- ' : \n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n      \n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n      \n    case 'table_row':\n      // Handle table rows - extract cell content\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      // Also check for direct cells property (simplified output variation)\n      else if (block.cells) {\n        const rowText = block.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n      \n    case 'divider':\n      lines.push('---');\n      break;\n      \n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n      \n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
+        "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\n// The raw Notion API returns blocks in a results array\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
       },
       "name": "Code in JavaScript",
       "type": "n8n-nodes-base.code",
@@ -116,33 +91,7 @@
     },
     {
       "parameters": {
-        "resource": "block",
-        "operation": "getAll",
-        "blockId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "={{ $json.body.data.id }}"
-        },
-        "returnAll": true,
-        "fetchNestedBlocks": true
-      },
-      "name": "Get many child blocks1",
-      "type": "n8n-nodes-base.notion",
-      "position": [
-        -416,
-        -48
-      ],
-      "typeVersion": 2.2,
-      "alwaysOutputData": true,
-      "credentials": {
-        "notionApi": {
-          "name": "Aarons Notion account top level"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "jsCode": "const blocks = $input.all();\nconst lines = [];\n\n// Check if input is empty or has no blocks\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nfor (const item of blocks) {\n  const block = item.json;\n  const type = block.type;\n  \n  // Direct content field (simplified output)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n  \n  // Handle different block types\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' : \n                        type === 'numbered_list_item' ? '- ' : \n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n      \n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n      \n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      else if (block.cells) {\n        const rowText = block.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n      \n    case 'divider':\n      lines.push('---');\n      break;\n      \n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n      \n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\n// Also check if processing resulted in empty content\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
+        "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
       },
       "name": "Code in JavaScript1",
       "type": "n8n-nodes-base.code",
@@ -502,9 +451,9 @@
           "folderId": {
             "__rl": true,
             "mode": "list",
-            "value": "13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
-            "cachedResultUrl": "https://drive.google.com/drive/folders/13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
-            "cachedResultName": "Image Generation Dump for Blog"
+            "value": "1k02JTX0tWvT5iZp3zdqq3xQFt572pJel",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/1k02JTX0tWvT5iZp3zdqq3xQFt572pJel",
+            "cachedResultName": "Reference Image Input"
           }
         },
         "options": {}
@@ -718,6 +667,66 @@
           "name": "Aarons Notion account - T-0 Scope"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.notion.com/v1/blocks/2d5c0fdf942d80e6b716e8b468bea7f1/children?page_size=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Fetch Illustration Guide",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -416,
+        304
+      ],
+      "credentials": {
+        "notionApi": {
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://api.notion.com/v1/blocks/{{ $json.body.data.id }}/children?page_size=100",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Fetch Blogpost Blocks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -416,
+        -48
+      ],
+      "credentials": {
+        "notionApi": {
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
     }
   ],
   "connections": {
@@ -747,12 +756,12 @@
       "main": [
         [
           {
-            "node": "Get many child blocks",
+            "node": "Fetch Illustration Guide",
             "type": "main",
             "index": 0
           },
           {
-            "node": "Get many child blocks1",
+            "node": "Fetch Blogpost Blocks",
             "type": "main",
             "index": 0
           },
@@ -1012,34 +1021,12 @@
         ]
       ]
     },
-    "Get many child blocks": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "OpenRouter Chat Model": {
       "ai_languageModel": [
         [
           {
             "node": "Basic LLM Chain",
             "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get many child blocks1": {
-      "main": [
-        [
-          {
-            "node": "Code in JavaScript1",
-            "type": "main",
             "index": 0
           }
         ]
@@ -1093,7 +1080,7 @@
       "main": [
         [
           {
-            "node": "Get many child blocks1",
+            "node": "Fetch Blogpost Blocks",
             "type": "main",
             "index": 0
           },
@@ -1103,7 +1090,7 @@
             "index": 1
           },
           {
-            "node": "Get many child blocks",
+            "node": "Fetch Illustration Guide",
             "type": "main",
             "index": 0
           }
@@ -1115,6 +1102,28 @@
         [
           {
             "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Illustration Guide": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Blogpost Blocks": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
             "type": "main",
             "index": 0
           }
@@ -1329,12 +1338,12 @@
       }
     ]
   },
-  "activeVersionId": "c9ace6ef-d5d6-4530-8e69-daad9eeaf277",
-  "versionCounter": 152,
+  "activeVersionId": "4cddf5c2-cc1a-4fe0-b30a-02df3e39d4da",
+  "versionCounter": 156,
   "activeVersion": {
-    "updatedAt": "2026-03-27T19:47:16.784Z",
-    "createdAt": "2026-03-27T19:47:16.784Z",
-    "versionId": "c9ace6ef-d5d6-4530-8e69-daad9eeaf277",
+    "updatedAt": "2026-03-27T20:01:57.814Z",
+    "createdAt": "2026-03-27T20:01:57.814Z",
+    "versionId": "4cddf5c2-cc1a-4fe0-b30a-02df3e39d4da",
     "workflowId": "2b6MMXh1Hz7NmbbR",
     "nodes": [
       {
@@ -1419,34 +1428,7 @@
       },
       {
         "parameters": {
-          "resource": "block",
-          "operation": "getAll",
-          "blockId": {
-            "__rl": true,
-            "mode": "url",
-            "value": "https://www.notion.so/schallvagabunden/T-0-Brand-Image-Style-Description-2d5c0fdf942d80e6b716e8b468bea7f1?source=copy_link"
-          },
-          "returnAll": true,
-          "fetchNestedBlocks": true
-        },
-        "id": "79d323ef-6214-4b59-a850-4f92196693e6",
-        "name": "Get many child blocks",
-        "type": "n8n-nodes-base.notion",
-        "position": [
-          -416,
-          304
-        ],
-        "typeVersion": 2.2,
-        "credentials": {
-          "notionApi": {
-            "id": "0xiiQaGDhyAvgSeB",
-            "name": "Aarons Notion account - T-0 Scope"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "jsCode": "const blocks = $input.all();\nconst lines = [];\n\nfor (const item of blocks) {\n  const block = item.json;\n  const type = block.type;\n  \n  // Direct content field (simplified output)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n  \n  // Handle different block types\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' : \n                        type === 'numbered_list_item' ? '- ' : \n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n      \n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n      \n    case 'table_row':\n      // Handle table rows - extract cell content\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      // Also check for direct cells property (simplified output variation)\n      else if (block.cells) {\n        const rowText = block.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n      \n    case 'divider':\n      lines.push('---');\n      break;\n      \n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n      \n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
+          "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\n// The raw Notion API returns blocks in a results array\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
         },
         "id": "ddb898a6-3e91-4af6-be84-2a843ecad966",
         "name": "Code in JavaScript",
@@ -1459,35 +1441,7 @@
       },
       {
         "parameters": {
-          "resource": "block",
-          "operation": "getAll",
-          "blockId": {
-            "__rl": true,
-            "mode": "id",
-            "value": "={{ $json.body.data.id }}"
-          },
-          "returnAll": true,
-          "fetchNestedBlocks": true
-        },
-        "id": "09fb6906-7aa0-460a-aa27-e5cf340a1008",
-        "name": "Get many child blocks1",
-        "type": "n8n-nodes-base.notion",
-        "position": [
-          -416,
-          -48
-        ],
-        "typeVersion": 2.2,
-        "alwaysOutputData": true,
-        "credentials": {
-          "notionApi": {
-            "id": "7b88zLVS4JMRkPtR",
-            "name": "Aarons Notion account top level"
-          }
-        }
-      },
-      {
-        "parameters": {
-          "jsCode": "const blocks = $input.all();\nconst lines = [];\n\n// Check if input is empty or has no blocks\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nfor (const item of blocks) {\n  const block = item.json;\n  const type = block.type;\n  \n  // Direct content field (simplified output)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n  \n  // Handle different block types\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' : \n                        type === 'numbered_list_item' ? '- ' : \n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n      \n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n      \n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      else if (block.cells) {\n        const rowText = block.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n      \n    case 'divider':\n      lines.push('---');\n      break;\n      \n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n      \n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\n// Also check if processing resulted in empty content\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
+          "jsCode": "// Handle HTTP Request response: { results: [...blocks...] }\nconst responseData = $input.first().json;\nconst blocks = responseData.results || [];\n\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nconst lines = [];\n\nfor (const block of blocks) {\n  const type = block.type;\n\n  // Direct content field (simplified output from native Notion node)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n\n  // Handle different block types (raw Notion API format)\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '• ' :\n                        type === 'numbered_list_item' ? '- ' :\n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n\n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n\n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => Array.isArray(cell) ? cell.map(c => c.plain_text || '').join('') : '')\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n\n    case 'divider':\n      lines.push('---');\n      break;\n\n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n\n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
         },
         "id": "56c759eb-6139-42e0-b7cc-daa5dc830048",
         "name": "Code in JavaScript1",
@@ -1875,9 +1829,9 @@
             "folderId": {
               "__rl": true,
               "mode": "list",
-              "value": "13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
-              "cachedResultUrl": "https://drive.google.com/drive/folders/13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
-              "cachedResultName": "Image Generation Dump for Blog"
+              "value": "1k02JTX0tWvT5iZp3zdqq3xQFt572pJel",
+              "cachedResultUrl": "https://drive.google.com/drive/folders/1k02JTX0tWvT5iZp3zdqq3xQFt572pJel",
+              "cachedResultName": "Reference Image Input"
             }
           },
           "options": {}
@@ -2107,6 +2061,70 @@
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=https://api.notion.com/v1/blocks/2d5c0fdf942d80e6b716e8b468bea7f1/children?page_size=100",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Notion-Version",
+                "value": "2022-06-28"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "fetch-illustration-guide",
+        "name": "Fetch Illustration Guide",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -416,
+          304
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "=https://api.notion.com/v1/blocks/{{ $json.body.data.id }}/children?page_size=100",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Notion-Version",
+                "value": "2022-06-28"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "id": "fetch-blogpost-blocks",
+        "name": "Fetch Blogpost Blocks",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          -416,
+          -48
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
       }
     ],
     "connections": {
@@ -2136,12 +2154,12 @@
         "main": [
           [
             {
-              "node": "Get many child blocks",
+              "node": "Fetch Illustration Guide",
               "type": "main",
               "index": 0
             },
             {
-              "node": "Get many child blocks1",
+              "node": "Fetch Blogpost Blocks",
               "type": "main",
               "index": 0
             },
@@ -2401,34 +2419,12 @@
           ]
         ]
       },
-      "Get many child blocks": {
-        "main": [
-          [
-            {
-              "node": "Code in JavaScript",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
       "OpenRouter Chat Model": {
         "ai_languageModel": [
           [
             {
               "node": "Basic LLM Chain",
               "type": "ai_languageModel",
-              "index": 0
-            }
-          ]
-        ]
-      },
-      "Get many child blocks1": {
-        "main": [
-          [
-            {
-              "node": "Code in JavaScript1",
-              "type": "main",
               "index": 0
             }
           ]
@@ -2482,7 +2478,7 @@
         "main": [
           [
             {
-              "node": "Get many child blocks1",
+              "node": "Fetch Blogpost Blocks",
               "type": "main",
               "index": 0
             },
@@ -2492,7 +2488,7 @@
               "index": 1
             },
             {
-              "node": "Get many child blocks",
+              "node": "Fetch Illustration Guide",
               "type": "main",
               "index": 0
             }
@@ -2509,6 +2505,28 @@
             }
           ]
         ]
+      },
+      "Fetch Illustration Guide": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Blogpost Blocks": {
+        "main": [
+          [
+            {
+              "node": "Code in JavaScript1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "T-0 Admin",
@@ -2517,26 +2535,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-27T19:47:17.069Z",
-        "id": 536,
+        "createdAt": "2026-03-27T20:01:58.099Z",
+        "id": 540,
         "workflowId": "2b6MMXh1Hz7NmbbR",
-        "versionId": "c9ace6ef-d5d6-4530-8e69-daad9eeaf277",
-        "event": "activated",
-        "userId": "f098d803-bf77-453b-abac-36b3806f4345"
-      },
-      {
-        "createdAt": "2026-03-27T19:48:08.329Z",
-        "id": 537,
-        "workflowId": "2b6MMXh1Hz7NmbbR",
-        "versionId": "c9ace6ef-d5d6-4530-8e69-daad9eeaf277",
-        "event": "deactivated",
-        "userId": "f098d803-bf77-453b-abac-36b3806f4345"
-      },
-      {
-        "createdAt": "2026-03-27T19:48:10.620Z",
-        "id": 538,
-        "workflowId": "2b6MMXh1Hz7NmbbR",
-        "versionId": "c9ace6ef-d5d6-4530-8e69-daad9eeaf277",
+        "versionId": "4cddf5c2-cc1a-4fe0-b30a-02df3e39d4da",
         "event": "activated",
         "userId": "f098d803-bf77-453b-abac-36b3806f4345"
       }
