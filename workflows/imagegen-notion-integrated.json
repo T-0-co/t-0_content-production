@@ -1,0 +1,1178 @@
+{
+  "name": "Image Creation Workflow from Notion blogpost drafts",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "db419527-7b87-4815-bfee-ebf93fc0cdb1",
+        "options": {}
+      },
+      "id": "47b69ae5-9e5f-4ff9-afaf-95b05a1fb01a",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -672,
+        64
+      ],
+      "webhookId": "db419527-7b87-4815-bfee-ebf93fc0cdb1",
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-pro-image-preview:generateContent",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googlePalmApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "e719925f-8812-498a-b108-74ccaac70bd5",
+      "name": "HTTP Request",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1872,
+        144
+      ],
+      "typeVersion": 4.3,
+      "credentials": {
+        "googlePalmApi": {
+          "id": "elsArEbMxg0NboPb",
+          "name": "Aarons Gemini Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Write an image description in alignment with our brand, based on the following context.\n\n## Illustration Guide:\n{{ $json.illustrationGuide }}\n\n## Blogpost Draft:\n{{ $json.blogpost_draft }}\n\n## Core Image Request:\n{{ $('Parameter Parser').first().json.output?.coreDescription || $json.image_gen_description || 'No specific description provided' }}\n\n## Reference Image Instructions:\n{{ $('Parameter Parser').first().json.output?.referenceUsageInstruction ? 'IMPORTANT: When using the reference image, ' + $('Parameter Parser').first().json.output.referenceUsageInstruction : 'Use reference image for overall style matching.' }}\n\n## Format:\n{{ $('Parameter Parser').first().json.output?.aspectRatio === '9:16' ? 'Portrait/vertical format' : $('Parameter Parser').first().json.output?.aspectRatio === '1:1' ? 'Square format' : 'Widescreen/landscape format (16:9)' }}\n\nGenerate a detailed image description that will be used for AI image generation. Include all visual elements, composition, lighting, and style specifications.",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "5f4f7af6-9b49-4721-8064-51f03d996998",
+      "name": "Basic LLM Chain",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        512,
+        80
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "cd07a6ab-fa1e-4490-82f6-3aedc65a684a",
+      "name": "OpenRouter Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "position": [
+        512,
+        272
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
+          "name": "Aarons OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "block",
+        "operation": "getAll",
+        "blockId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "https://www.notion.so/schallvagabunden/T-0-Brand-Image-Style-Description-2d5c0fdf942d80e6b716e8b468bea7f1?source=copy_link"
+        },
+        "returnAll": true,
+        "fetchNestedBlocks": true
+      },
+      "id": "79d323ef-6214-4b59-a850-4f92196693e6",
+      "name": "Get many child blocks",
+      "type": "n8n-nodes-base.notion",
+      "position": [
+        -416,
+        304
+      ],
+      "typeVersion": 2.2,
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const blocks = $input.all();\nconst lines = [];\n\nfor (const item of blocks) {\n  const block = item.json;\n  const type = block.type;\n  \n  // Direct content field (simplified output)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n  \n  // Handle different block types\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '\u2022 ' : \n                        type === 'numbered_list_item' ? '- ' : \n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n      \n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n      \n    case 'table_row':\n      // Handle table rows - extract cell content\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      // Also check for direct cells property (simplified output variation)\n      else if (block.cells) {\n        const rowText = block.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n      \n    case 'divider':\n      lines.push('---');\n      break;\n      \n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n      \n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst illustrationGuide = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\nreturn [{ json: { illustrationGuide } }];"
+      },
+      "id": "ddb898a6-3e91-4af6-be84-2a843ecad966",
+      "name": "Code in JavaScript",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -240,
+        304
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "resource": "block",
+        "operation": "getAll",
+        "blockId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.body.data.id }}"
+        },
+        "returnAll": true,
+        "fetchNestedBlocks": true
+      },
+      "id": "09fb6906-7aa0-460a-aa27-e5cf340a1008",
+      "name": "Get many child blocks1",
+      "type": "n8n-nodes-base.notion",
+      "position": [
+        -416,
+        -48
+      ],
+      "typeVersion": 2.2,
+      "alwaysOutputData": true,
+      "credentials": {
+        "notionApi": {
+          "id": "7b88zLVS4JMRkPtR",
+          "name": "Aarons Notion account top level"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const blocks = $input.all();\nconst lines = [];\n\n// Check if input is empty or has no blocks\nif (!blocks || blocks.length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nfor (const item of blocks) {\n  const block = item.json;\n  const type = block.type;\n  \n  // Direct content field (simplified output)\n  if (block.content && typeof block.content === 'string') {\n    lines.push(block.content);\n    continue;\n  }\n  \n  // Handle different block types\n  switch (type) {\n    case 'paragraph':\n    case 'bulleted_list_item':\n    case 'numbered_list_item':\n    case 'quote':\n    case 'callout':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        if (text) {\n          const prefix = type === 'bulleted_list_item' ? '\u2022 ' : \n                        type === 'numbered_list_item' ? '- ' : \n                        type === 'quote' ? '> ' : '';\n          lines.push(prefix + text);\n        }\n      }\n      break;\n      \n    case 'heading_1':\n    case 'heading_2':\n    case 'heading_3':\n      if (block[type]?.rich_text) {\n        const text = block[type].rich_text.map(rt => rt.plain_text).join('');\n        const hashes = type === 'heading_1' ? '# ' : type === 'heading_2' ? '## ' : '### ';\n        if (text) lines.push(hashes + text);\n      }\n      break;\n      \n    case 'table_row':\n      if (block.table_row?.cells) {\n        const rowText = block.table_row.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      else if (block.cells) {\n        const rowText = block.cells\n          .map(cell => {\n            if (Array.isArray(cell)) {\n              return cell.map(c => c.plain_text || c.text?.content || '').join('');\n            }\n            return '';\n          })\n          .join(' | ');\n        if (rowText.trim()) lines.push('| ' + rowText + ' |');\n      }\n      break;\n      \n    case 'divider':\n      lines.push('---');\n      break;\n      \n    case 'code':\n      if (block.code?.rich_text) {\n        const code = block.code.rich_text.map(rt => rt.plain_text).join('');\n        lines.push('```\\n' + code + '\\n```');\n      }\n      break;\n      \n    case 'to_do':\n      if (block.to_do?.rich_text) {\n        const text = block.to_do.rich_text.map(rt => rt.plain_text).join('');\n        const checked = block.to_do.checked ? '[x]' : '[ ]';\n        if (text) lines.push(`- ${checked} ${text}`);\n      }\n      break;\n  }\n}\n\nconst blogpost_draft = lines\n  .filter(line => line && line.trim().length > 0)\n  .join('\\n');\n\n// Also check if processing resulted in empty content\nif (!blogpost_draft || blogpost_draft.trim().length === 0) {\n  return [{ json: { blogpost_draft: \"No draft text available yet.\" } }];\n}\n\nreturn [{ json: { blogpost_draft } }];"
+      },
+      "id": "56c759eb-6139-42e0-b7cc-daa5dc830048",
+      "name": "Code in JavaScript1",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        -240,
+        -48
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "Get Illustration Guide form notion and simplify"
+      },
+      "id": "dc0996ad-344f-4493-ab95-8f8cf2ca8247",
+      "name": "Sticky Note",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -384,
+        480
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "Get full blogpost Draft"
+      },
+      "id": "32cbcd30-7962-4057-83ce-e08d2b35a26e",
+      "name": "Sticky Note1",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -416,
+        -272
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Helper: Get webhook data from either Webhook or Webhook1\nconst getWebhookData = () => {\n  try { const w = $('Webhook'); if (w && w.first()) return w.first().json; } catch (e) {}\n  try { const w1 = $('Webhook1'); if (w1 && w1.first()) return w1.first().json; } catch (e) {}\n  return {};\n};\nconst webhookData = getWebhookData();\n\n// Get data from each branch\nconst illustrationGuide = $('Code in JavaScript').first().json.illustrationGuide;\nconst blogpost_draft = $('Code in JavaScript1').first().json.blogpost_draft;\n\n// Get properties from webhook data (supports both Webhook and Webhook1)\nconst props = webhookData.body?.data?.properties || {};\n\n// Extract relevant fields safely\nconst title = String(props.Name?.title?.[0]?.plain_text || '');\nconst description = String(props.Description?.rich_text?.[0]?.plain_text || '');\nconst imageGenDescription = String(props['Image Gen Description']?.rich_text?.[0]?.plain_text || '');\nconst pitch = String(props.Pitch?.rich_text?.[0]?.plain_text || '');\n\n// Build context string with only non-empty fields\nconst contextParts = [];\nif (title) contextParts.push('Title: ' + title);\nif (description) contextParts.push('Description: ' + description);\nif (pitch) contextParts.push('Pitch: ' + pitch);\n\nconst pageContext = contextParts.join('\\n');\n\nreturn [{\n  json: {\n    illustrationGuide: illustrationGuide,\n    blogpost_draft: blogpost_draft,\n    page_context: pageContext,\n    image_gen_description: imageGenDescription\n  }\n}];"
+      },
+      "id": "a915e46f-213d-4fbc-ac84-c73cf0cb4450",
+      "name": "Code in JavaScript2",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        80,
+        80
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "numberInputs": 3
+      },
+      "id": "82d58d5a-b210-49a5-b723-14d6edb9e273",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        -80,
+        64
+      ],
+      "executeOnce": true,
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the image description from LLM\nconst imageDescription = $('Basic LLM Chain').first().json.output?.imageDescription || '';\n\n// Get parser output for aspect ratio and reference instructions\nconst parserOutput = $('Parameter Parser').first().json.output || {};\nconst aspectRatio = parserOutput.aspectRatio || '16:9';\nconst referenceUsageInstruction = parserOutput.referenceUsageInstruction || null;\n\n// Get illustration guide for context (optional inclusion in prompt)\nconst illustrationGuide = $('Code in JavaScript').first().json.illustrationGuide || '';\n\n// Get reference image from Google Drive Download node\nlet referenceImages = [];\ntry {\n  const downloadNode = $('Download file');\n  if (downloadNode && downloadNode.first().binary?.data) {\n    const binaryData = downloadNode.first().binary.data;\n    referenceImages.push({\n      base64: binaryData.data,\n      mimeType: binaryData.mimeType || 'image/png'\n    });\n  }\n} catch (e) {\n  referenceImages = [];\n}\n\n// Build the parts array\nconst parts = [];\n\nif (referenceImages.length > 0) {\n  for (let i = 0; i < referenceImages.length; i++) {\n    parts.push({\n      inlineData: {\n        mimeType: referenceImages[i].mimeType,\n        data: referenceImages[i].base64\n      }\n    });\n  }\n  \n  // Build reference instruction based on user preference\n  let refInstruction = referenceUsageInstruction \n    ? `Using ${referenceUsageInstruction} from the reference image above`\n    : 'Using the exact visual style of this reference image \u2014 including color palette, lighting, textures, polygon density, and artistic treatment';\n  \n  parts.push({\n    text: `${refInstruction}, generate a completely new image based on the following description. The content should match the description precisely.\n\nIMAGE DESCRIPTION:\n${imageDescription}`\n  });\n  \n} else {\n  const styleReminder = `\nSTYLE REQUIREMENTS:\n- Lowpoly 3D render with visible triangular facets\n- Space/lunar environment theme\n- Soft diffuse lighting with subtle shadows\n- Brand colors: cyan (#1fb1ea) and orange (#d36600) as accents\n- Clean minimal aesthetic, retro-futurism\n- Medium-low polygon count (visible geometric mesh)\n`;\n\n  parts.push({\n    text: `Generate an image following these specifications:\n${styleReminder}\nIMAGE DESCRIPTION:\n${imageDescription}`\n  });\n}\n\n// Build the complete request body with aspect ratio in generationConfig.imageConfig\nconst requestBody = {\n  contents: [{\n    parts: parts\n  }],\n  generationConfig: {\n    responseModalities: [\"IMAGE\", \"TEXT\"],\n    imageConfig: {\n      aspectRatio: aspectRatio\n    }\n  }\n};\n\nreturn [{\n  json: {\n    requestBody,\n    _meta: {\n      hasReferenceImages: referenceImages.length > 0,\n      referenceImageCount: referenceImages.length,\n      descriptionLength: imageDescription.length,\n      aspectRatio: aspectRatio,\n      referenceUsageInstruction: referenceUsageInstruction\n    }\n  }\n}];"
+      },
+      "id": "1a973b42-a413-43ab-a7c5-cdc6e4bfb38b",
+      "name": "Code in JavaScript3",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1712,
+        144
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Helper: Get webhook data from either Webhook or Webhook1\nconst getWebhookData = () => {\n  try { const w = $('Webhook'); if (w && w.first()) return w.first().json; } catch (e) {}\n  try { const w1 = $('Webhook1'); if (w1 && w1.first()) return w1.first().json; } catch (e) {}\n  return {};\n};\nconst webhookData = getWebhookData();\n\nconst response = $input.first().json;\n\n// Get imageTitle from LLM output\nconst imageTitle = $('Basic LLM Chain').first().json.output?.imageTitle || 'untitled';\n\n// Get created_time from webhook (supports both Webhook and Webhook1)\nconst createdTime = webhookData.body?.data?.created_time;\nconst datePrefix = createdTime \n  ? new Date(createdTime).toISOString().slice(0, 10) // Gets YYYY-MM-DD\n  : new Date().toISOString().slice(0, 10);\n\n// Convert title to kebab-case slug\nconst titleSlug = imageTitle\n  .toLowerCase()\n  .replace(/[^a-z0-9]+/g, '-')  // Replace non-alphanumeric with hyphens\n  .replace(/^-|-$/g, '');        // Remove leading/trailing hyphens\n\n// Build filename\nconst fileName = `${datePrefix}_${titleSlug}.png`;\n\n// Gemini returns image in candidates[0].content.parts[].inlineData\nlet imageBase64 = null;\nlet mimeType = 'image/png';\n\nif (response.candidates && response.candidates[0]?.content?.parts) {\n  for (const part of response.candidates[0].content.parts) {\n    if (part.inlineData) {\n      imageBase64 = part.inlineData.data;\n      mimeType = part.inlineData.mimeType || 'image/png';\n      break;\n    }\n  }\n}\n\nif (!imageBase64) {\n  throw new Error('No image data found in Gemini response');\n}\n\nreturn [{\n  json: {\n    mimeType,\n    fileName,\n    imageTitle,\n    datePrefix\n  },\n  binary: {\n    image: {\n      data: imageBase64,\n      mimeType: mimeType,\n      fileName: fileName\n    }\n  }\n}];"
+      },
+      "id": "6c271545-a5aa-45a2-9906-8ffd4545871f",
+      "name": "Code in JavaScript4",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2064,
+        144
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "inputDataFieldName": "=image",
+        "name": "={{ $json.fileName }}",
+        "driveId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "My Drive"
+        },
+        "folderId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
+          "cachedResultUrl": "https://drive.google.com/drive/folders/13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
+          "cachedResultName": "Image Generation Dump for Blog"
+        },
+        "options": {}
+      },
+      "id": "11100d69-4fb5-4d8e-86c1-1a38ddb68d6f",
+      "name": "Upload file",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        2240,
+        32
+      ],
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
+          "name": "Aarons T-0 Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"imageDescription\": \"A detailed description of the image scene including all visual elements, composition, lighting, and style specifications\",\n  \"imageTitle\": \"astronaut-lunar-stage-rocket-banner\"\n}"
+      },
+      "id": "10159645-60c4-4138-acff-1e4b704fd435",
+      "name": "Structured Output Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        672,
+        272
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "operation": "share",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.id }}"
+        },
+        "permissionsUi": {
+          "permissionsValues": {
+            "role": "reader",
+            "type": "anyone"
+          }
+        },
+        "options": {}
+      },
+      "id": "d1bb9ac4-f02b-4b13-866b-7adb25563f81",
+      "name": "Share file",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        2448,
+        32
+      ],
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
+          "name": "Aarons T-0 Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/file_uploads",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"filename\": \"{{ $json.fileName }}\",\n  \"content_type\": \"{{ $json.mimeType }}\"\n}",
+        "options": {}
+      },
+      "id": "411f531b-3e50-4f81-8f96-bda0c7c39d41",
+      "name": "HTTP Request1",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        2656,
+        32
+      ],
+      "typeVersion": 4.3,
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        },
+        "httpBasicAuth": {
+          "id": "eIWDFOZv74Pz9gdI",
+          "name": "festiware lead researcher agent chat login"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.upload_url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "image"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "294b0977-8a67-405b-99ed-0945b20e9709",
+      "name": "HTTP Request2",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3136,
+        128
+      ],
+      "typeVersion": 4.3,
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        },
+        "httpBasicAuth": {
+          "id": "eIWDFOZv74Pz9gdI",
+          "name": "festiware lead researcher agent chat login"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const httpResponse = $('HTTP Request1').first().json;\nconst codeOutput = $('Code in JavaScript4').first();\n\nreturn [{\n  json: {\n    ...httpResponse,\n    ...codeOutput.json\n  },\n  binary: codeOutput.binary\n}];"
+      },
+      "id": "623f861d-a4f6-40c4-a12c-d9a307b23be5",
+      "name": "Code in JavaScript5",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        2992,
+        128
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {},
+      "id": "95efb5c3-e8e2-4ddd-8d8d-a89812905eea",
+      "name": "Merge1",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        2848,
+        128
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/blocks/{{ $if($('Webhook').isExecuted, $('Webhook').first().json.body.data.id, $('Webhook1').first().json.body.data.id) }}/children",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"children\": [\n    {\n      \"type\": \"image\",\n      \"image\": {\n        \"type\": \"file_upload\",\n        \"file_upload\": {\n          \"id\": \"{{ $json.id }}\"\n        }\n      }\n    }\n  ]\n}",
+        "options": {}
+      },
+      "id": "de03228e-d6a6-4e4e-ae61-735259d500b7",
+      "name": "HTTP Request3",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        3296,
+        128
+      ],
+      "typeVersion": 4.3,
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        },
+        "httpBasicAuth": {
+          "id": "eIWDFOZv74Pz9gdI",
+          "name": "festiware lead researcher agent chat login"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Select the best reference image from our Google Drive folder.\n\nFile List:\n{{ $json.fileList }}\n\n{{ $('Parameter Parser').first().json.output?.referenceSearchHint \n   ? 'USER HINT: Look for images related to: ' + $('Parameter Parser').first().json.output.referenceSearchHint\n   : 'Match to this description: ' + $('Basic LLM Chain').first().json.output.imageDescription }}\n\nSelect the file that best matches the requested style/content.",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "Select the best style reference image. If user provided a hint, prioritize matching that hint. Return ONLY the file ID in the imagebinary field."
+        }
+      },
+      "id": "bf118119-38ae-4bc3-862f-3f4798955da1",
+      "name": "AI Agent",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "position": [
+        1248,
+        48
+      ],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "a2d3ccc8-0ec0-4268-80ab-81d29543b045",
+      "name": "OpenRouter Chat Model1",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "position": [
+        1120,
+        256
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
+          "name": "Aarons OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $if($('Webhook').isExecuted, $('Webhook').first().json.body.data.id, $('Webhook1').first().json.body.data.id) }}"
+      },
+      "id": "d24bbdcb-908f-4152-91a8-2e5bfc41c436",
+      "name": "Simple Memory",
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "position": [
+        1248,
+        272
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n\t\"imagebinary\": \"binary of the image from google download\"\n}"
+      },
+      "id": "0e6e4241-d6d9-4adc-9b22-d22e660be3d9",
+      "name": "Structured Output Parser1",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        1424,
+        240
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "resource": "fileFolder",
+        "filter": {
+          "folderId": {
+            "__rl": true,
+            "mode": "list",
+            "value": "13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
+            "cachedResultUrl": "https://drive.google.com/drive/folders/13CQ-Y2CRITlUn9fc28LnLLXoVeRtAVLE",
+            "cachedResultName": "Image Generation Dump for Blog"
+          }
+        },
+        "options": {}
+      },
+      "id": "c1608428-5104-49c7-953a-2ec03b38d35a",
+      "name": "Search files and folders",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        960,
+        64
+      ],
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
+          "name": "Aarons T-0 Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst fileList = [];\n\nfor (const item of items) {\n  fileList.push(`- ${item.json.name} (ID: ${item.json.id})`);\n}\n\nreturn [{\n  json: {\n    fileList: fileList.join('\\n'),\n    fileCount: items.length\n  }\n}];"
+      },
+      "id": "f58cc27d-df93-4c34-aef8-685131031dc9",
+      "name": "Code in JavaScript6",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1104,
+        48
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "operation": "download",
+        "fileId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "={{ $json.output.imagebinary }}"
+        },
+        "options": {}
+      },
+      "id": "d147129f-21ad-4808-8c18-757f0a040541",
+      "name": "Download file",
+      "type": "n8n-nodes-base.googleDrive",
+      "position": [
+        1536,
+        48
+      ],
+      "typeVersion": 3,
+      "credentials": {
+        "googleDriveOAuth2Api": {
+          "id": "soHMd6eVYsoFjdQo",
+          "name": "Aarons T-0 Google Drive account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Parse the following image generation request from a user. Extract structured parameters from natural language.\n\nUSER INPUT:\n{{ $json.image_gen_description }}\n\nExtract these parameters:\n1. coreDescription - The actual image description (remove any control instructions)\n2. useReferenceImage - Should a reference image be used? (default: true, false if user says \"ohne Referenz\", \"no reference\", \"from scratch\", etc.)\n3. referenceSearchHint - If user mentions a specific reference image style/type, extract it (e.g., \"like the moon landscape\", \"similar to the red banner\")\n4. referenceUsageInstruction - How should the reference be used? (e.g., \"only colors\", \"just the lighting\", \"exact style\")\n5. aspectRatio - Image format if mentioned (\"16:9\" for widescreen/landscape/querformat, \"9:16\" for portrait/hochformat, \"1:1\" for square/quadratisch, default: \"16:9\")\n\nIf a parameter is not mentioned, use null (except useReferenceImage which defaults to true and aspectRatio which defaults to \"16:9\").\nIf the input is empty or just a simple description with no special instructions, just put it in coreDescription and use defaults.",
+        "hasOutputParser": true,
+        "batching": {}
+      },
+      "id": "parser-agent-node",
+      "name": "Parameter Parser",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "position": [
+        224,
+        -96
+      ],
+      "typeVersion": 1.7
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"coreDescription\": \"A rocket launching from the moon surface\",\n  \"useReferenceImage\": true,\n  \"referenceSearchHint\": null,\n  \"referenceUsageInstruction\": null,\n  \"aspectRatio\": \"16:9\"\n}"
+      },
+      "id": "parser-output-schema",
+      "name": "Parser Output Schema",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "position": [
+        368,
+        80
+      ],
+      "typeVersion": 1.3
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "parser-llm-model",
+      "name": "Parser LLM Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "position": [
+        240,
+        96
+      ],
+      "typeVersion": 1,
+      "credentials": {
+        "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
+          "name": "Aarons OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "version": 2,
+            "leftValue": "",
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "ref-condition",
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              },
+              "leftValue": "={{ $('Parameter Parser').first().json.output?.useReferenceImage !== false }}",
+              "rightValue": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "if-use-reference",
+      "name": "IF: Use Reference?",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        800,
+        192
+      ],
+      "typeVersion": 2.2
+    },
+    {
+      "parameters": {
+        "jsCode": "// No reference image path - pass through with empty reference\nconst parserOutput = $('Parameter Parser').first().json.output || {};\nconst llmOutput = $('Basic LLM Chain').first().json.output || {};\n\nreturn [{\n  json: {\n    skipReference: true,\n    imageDescription: llmOutput.imageDescription,\n    imageTitle: llmOutput.imageTitle,\n    aspectRatio: parserOutput.aspectRatio || '16:9'\n  }\n}];"
+      },
+      "id": "no-reference-code",
+      "name": "Skip Reference Path",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1376,
+        528
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "## Parameter Parser\\n\\nExtracts structured parameters from natural language:\\n- useReferenceImage (default: true)\\n- referenceSearchHint\\n- referenceUsageInstruction\\n- aspectRatio (default: 16:9)"
+      },
+      "id": "parser-sticky",
+      "name": "Note: Parser",
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        208,
+        -288
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "bdd18b78-d445-41e9-9c76-6e6a6d831d96",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "b1493f5e-2e40-407b-9505-c8747a17f7a9",
+      "name": "Webhook1",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -704,
+        240
+      ],
+      "webhookId": "bdd18b78-d445-41e9-9c76-6e6a6d831d96",
+      "typeVersion": 2.1
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "17392c33-e0d0-4a61-ace8-81e732cd25b9",
+      "name": "Respond to Webhook",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        3456,
+        128
+      ],
+      "typeVersion": 1.4
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "https://api.notion.com/v1/pages/={{ $if($('Webhook').isExecuted, $('Webhook').first().json.body.data.id, $('Webhook1').first().json.body.data.id) }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Notion-Version",
+              "value": "2022-06-28"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"properties\": {\n    \"Image\": {\n      \"files\": [{\n        \"name\": \"{{ $('Code in JavaScript4').first().json.fileName }}\",\n        \"external\": {\n          \"url\": \"https://drive.google.com/uc?id={{ $('Upload file').first().json.id }}&export=download\"\n        }\n      }]\n    }\n  }\n}",
+        "options": {}
+      },
+      "id": "set-image-prop",
+      "name": "Set Image Property",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2448,
+        232
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Get many child blocks",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get many child blocks1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Download file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Share file": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Set Image Property",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload file": {
+      "main": [
+        [
+          {
+            "node": "Share file",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download file": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Simple Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Basic LLM Chain": {
+      "main": [
+        [
+          {
+            "node": "IF: Use Reference?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parameter Parser": {
+      "main": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser LLM Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Parameter Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "IF: Use Reference?": {
+      "main": [
+        [
+          {
+            "node": "Search files and folders",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Skip Reference Path",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript2": {
+      "main": [
+        [
+          {
+            "node": "Parameter Parser",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript4": {
+      "main": [
+        [
+          {
+            "node": "Upload file",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript5": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript6": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Skip Reference Path": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser Output Schema": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Parameter Parser",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many child blocks": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get many child blocks1": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Search files and folders": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript6",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Basic LLM Chain",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Structured Output Parser1": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook1": {
+      "main": [
+        [
+          {
+            "node": "Get many child blocks1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Get many child blocks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request3": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  }
+}
