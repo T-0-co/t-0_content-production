@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-27T17:05:38.519Z",
+  "updatedAt": "2026-03-27T17:31:53.405Z",
   "createdAt": "2026-03-27T16:41:20.360Z",
   "id": "Td8CIlyau6zkWHrI",
   "name": "WF-3: Intelligence Digest",
@@ -402,7 +402,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Try to get results from the latest merge point\nlet allResults;\ntry { allResults = $('Merge Page 3').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Merge Page 2').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Check Page 1').first()?.json?.results; } catch(e) {}\nif (!allResults) allResults = $input.first().json.results || [];\n\nif (!allResults.length) {\n  return [{ json: { items: [], count: 0, skip_processing: true } }];\n}\n\nconst items = allResults.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const url = p['URL']?.url || '';\n  const time = p['Time']?.date?.start || '';\n  const summary = (p['Summary']?.rich_text || []).map(t => t.plain_text).join('');\n  const description = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const origin = p['Origin']?.select?.name || '';\n  const originDesc = (p['Origin Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const sourceName = (p['Source']?.relation || []).length > 0 ? originDesc.replace(/ \\(.*\\)$| RSS$/, '') : '';\n  const cats = (p['Category Tags']?.multi_select || []).map(o => o.name);\n  const aiTags = (p['AI-Tags']?.multi_select || []).map(o => o.name);\n  const status = p['Status']?.status?.name || '';\n  return { page_id: page.id, title, url, time, summary: summary || description, origin, origin_description: originDesc, source_name: sourceName, category_tags: cats, ai_tags: aiTags, status };\n}).filter(i => i.title);\n\nreturn [{ json: { items, count: items.length, skip_processing: false } }];"
+        "jsCode": "// Try to get results from the latest merge point\nlet allResults;\ntry { allResults = $('Merge Page 3').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Merge Page 2').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Check Page 1').first()?.json?.results; } catch(e) {}\nif (!allResults) allResults = $input.first().json.results || [];\n\nif (!allResults.length) {\n  return [{ json: { items: [], count: 0, skip_processing: true } }];\n}\n\nconst items = allResults.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const url = p['URL']?.url || '';\n  const time = p['Time']?.date?.start || '';\n  const summary = (p['Summary']?.rich_text || []).map(t => t.plain_text).join('');\n  const description = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const origin = p['Origin']?.select?.name || '';\n  const originDesc = (p['Origin Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const sourceName = (p['Source']?.relation || []).length > 0 ? originDesc.replace(/ \\(.*\\)$| RSS$/, '') : '';\n  const catSelect = p['Category Tags']?.select?.name;\n  const cats = catSelect ? [catSelect] : [];\n  const aiTags = (p['AI-Tags']?.multi_select || []).map(o => o.name);\n  const status = p['Status']?.status?.name || '';\n  return { page_id: page.id, title, url, time, summary: summary || description, origin, origin_description: originDesc, source_name: sourceName, category_tags: cats, ai_tags: aiTags, status };\n}).filter(i => i.title);\n\nreturn [{ json: { items, count: items.length, skip_processing: false } }];"
       },
       "id": "extract-notes-new",
       "name": "Extract Notes",
@@ -412,6 +412,45 @@
         2200,
         300
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Bridge: Convert top clusters into Content Creation entries\nconst aiResp = $('AI Cluster').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '{}';\nconst jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\nlet digest;\ntry {\n  digest = JSON.parse(jsonMatch ? jsonMatch[0] : content);\n} catch(e) {\n  return [{ json: { error: 'Failed to parse AI response', skip: true } }];\n}\n\n// Get items and note page IDs from upstream\nconst prepData = $('Prepare Clustering').first().json;\nconst items = prepData.items || [];\n\n// Get report page ID from Create Report response\nconst reportId = $('Create Report').first().json.id || '';\n\nconst clusters = digest.clusters || [];\nif (!clusters.length) {\n  return [{ json: { skip: true, reason: 'No clusters found' } }];\n}\n\n// Filter: only clusters with 3+ items, sort by item count desc, take top 5\nconst eligible = clusters\n  .filter(c => (c.item_indices || []).length >= 3)\n  .sort((a, b) => (b.item_indices || []).length - (a.item_indices || []).length)\n  .slice(0, 5);\n\nif (!eligible.length) {\n  return [{ json: { skip: true, reason: 'No clusters with 3+ items' } }];\n}\n\nconst proposals = [];\nfor (const cluster of eligible) {\n  const clusterItems = (cluster.item_indices || []).map(idx => items[idx]).filter(Boolean);\n\n  // Collect note page IDs for the Notes relation\n  const noteIds = clusterItems.map(item => item.page_id).filter(Boolean);\n\n  // Collect unique category tags from all items in the cluster\n  const tagSet = new Set();\n  for (const item of clusterItems) {\n    if (item.category_tags) {\n      // category_tags can be string or array\n      const tags = Array.isArray(item.category_tags) ? item.category_tags : [item.category_tags];\n      tags.forEach(t => { if (t) tagSet.add(t); });\n    }\n  }\n  const categoryTags = [...tagSet].slice(0, 5).map(name => ({ name }));\n\n  // Build description from cluster summary + relevance\n  let description = '';\n  if (cluster.summary) description += cluster.summary;\n  if (cluster.relevance) description += '\\n\\nRelevance: ' + cluster.relevance;\n  description = description.substring(0, 2000);\n\n  // Build pitch from content_angle\n  const pitch = (cluster.content_angle || 'Topic cluster from weekly digest \u2014 review and refine angle.').substring(0, 2000);\n\n  // Build the Notion page creation request\n  const requestBody = {\n    parent: { database_id: '2afc0fdf-942d-813e-bafa-fe13acf0b35f' },\n    properties: {\n      'Name': { title: [{ text: { content: cluster.title.substring(0, 200) } }] },\n      'Status': { status: { name: 'Idea' } },\n      'Pitch': { rich_text: [{ text: { content: pitch } }] },\n      'Description': { rich_text: [{ text: { content: description } }] },\n      'Source Type': { select: { name: 'Pipeline Suggested' } },\n      'Content Type': { select: { name: 'Opinion' } },\n      'Notes': { relation: noteIds.slice(0, 100).map(id => ({ id })) },\n      'Report': { relation: reportId ? [{ id: reportId }] : [] },\n      'Category Tags': { multi_select: categoryTags },\n    },\n  };\n\n  proposals.push({\n    json: {\n      requestBody: JSON.stringify(requestBody),\n      clusterTitle: cluster.title,\n      itemCount: clusterItems.length,\n      noteCount: noteIds.length,\n    }\n  });\n}\n\nreturn proposals;"
+      },
+      "id": "prepare-proposals",
+      "name": "Prepare Content Proposals",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2300,
+        500
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "create-cc-entries",
+      "name": "Create Content Entries",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2600,
+        500
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
     }
   ],
   "connections": {
@@ -502,6 +541,11 @@
         [
           {
             "node": "Prepare Note Updates",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Content Proposals",
             "type": "main",
             "index": 0
           }
@@ -631,6 +675,17 @@
           }
         ]
       ]
+    },
+    "Prepare Content Proposals": {
+      "main": [
+        [
+          {
+            "node": "Create Content Entries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -646,9 +701,9 @@
   },
   "meta": null,
   "pinData": null,
-  "versionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
-  "activeVersionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
-  "versionCounter": 12,
+  "versionId": "8cd4e219-c304-4c32-bfdc-0a8824f8b768",
+  "activeVersionId": "8cd4e219-c304-4c32-bfdc-0a8824f8b768",
+  "versionCounter": 20,
   "triggerCount": 2,
   "shared": [
     {
@@ -671,9 +726,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-03-27T17:05:38.525Z",
-    "createdAt": "2026-03-27T17:05:38.525Z",
-    "versionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
+    "updatedAt": "2026-03-27T17:31:53.407Z",
+    "createdAt": "2026-03-27T17:31:53.407Z",
+    "versionId": "8cd4e219-c304-4c32-bfdc-0a8824f8b768",
     "workflowId": "Td8CIlyau6zkWHrI",
     "nodes": [
       {
@@ -1071,7 +1126,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Try to get results from the latest merge point\nlet allResults;\ntry { allResults = $('Merge Page 3').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Merge Page 2').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Check Page 1').first()?.json?.results; } catch(e) {}\nif (!allResults) allResults = $input.first().json.results || [];\n\nif (!allResults.length) {\n  return [{ json: { items: [], count: 0, skip_processing: true } }];\n}\n\nconst items = allResults.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const url = p['URL']?.url || '';\n  const time = p['Time']?.date?.start || '';\n  const summary = (p['Summary']?.rich_text || []).map(t => t.plain_text).join('');\n  const description = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const origin = p['Origin']?.select?.name || '';\n  const originDesc = (p['Origin Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const sourceName = (p['Source']?.relation || []).length > 0 ? originDesc.replace(/ \\(.*\\)$| RSS$/, '') : '';\n  const cats = (p['Category Tags']?.multi_select || []).map(o => o.name);\n  const aiTags = (p['AI-Tags']?.multi_select || []).map(o => o.name);\n  const status = p['Status']?.status?.name || '';\n  return { page_id: page.id, title, url, time, summary: summary || description, origin, origin_description: originDesc, source_name: sourceName, category_tags: cats, ai_tags: aiTags, status };\n}).filter(i => i.title);\n\nreturn [{ json: { items, count: items.length, skip_processing: false } }];"
+          "jsCode": "// Try to get results from the latest merge point\nlet allResults;\ntry { allResults = $('Merge Page 3').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Merge Page 2').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Check Page 1').first()?.json?.results; } catch(e) {}\nif (!allResults) allResults = $input.first().json.results || [];\n\nif (!allResults.length) {\n  return [{ json: { items: [], count: 0, skip_processing: true } }];\n}\n\nconst items = allResults.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const url = p['URL']?.url || '';\n  const time = p['Time']?.date?.start || '';\n  const summary = (p['Summary']?.rich_text || []).map(t => t.plain_text).join('');\n  const description = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const origin = p['Origin']?.select?.name || '';\n  const originDesc = (p['Origin Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const sourceName = (p['Source']?.relation || []).length > 0 ? originDesc.replace(/ \\(.*\\)$| RSS$/, '') : '';\n  const catSelect = p['Category Tags']?.select?.name;\n  const cats = catSelect ? [catSelect] : [];\n  const aiTags = (p['AI-Tags']?.multi_select || []).map(o => o.name);\n  const status = p['Status']?.status?.name || '';\n  return { page_id: page.id, title, url, time, summary: summary || description, origin, origin_description: originDesc, source_name: sourceName, category_tags: cats, ai_tags: aiTags, status };\n}).filter(i => i.title);\n\nreturn [{ json: { items, count: items.length, skip_processing: false } }];"
         },
         "id": "extract-notes-new",
         "name": "Extract Notes",
@@ -1081,6 +1136,45 @@
           2200,
           300
         ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Bridge: Convert top clusters into Content Creation entries\nconst aiResp = $('AI Cluster').first().json;\nconst content = aiResp.choices?.[0]?.message?.content || '{}';\nconst jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\nlet digest;\ntry {\n  digest = JSON.parse(jsonMatch ? jsonMatch[0] : content);\n} catch(e) {\n  return [{ json: { error: 'Failed to parse AI response', skip: true } }];\n}\n\n// Get items and note page IDs from upstream\nconst prepData = $('Prepare Clustering').first().json;\nconst items = prepData.items || [];\n\n// Get report page ID from Create Report response\nconst reportId = $('Create Report').first().json.id || '';\n\nconst clusters = digest.clusters || [];\nif (!clusters.length) {\n  return [{ json: { skip: true, reason: 'No clusters found' } }];\n}\n\n// Filter: only clusters with 3+ items, sort by item count desc, take top 5\nconst eligible = clusters\n  .filter(c => (c.item_indices || []).length >= 3)\n  .sort((a, b) => (b.item_indices || []).length - (a.item_indices || []).length)\n  .slice(0, 5);\n\nif (!eligible.length) {\n  return [{ json: { skip: true, reason: 'No clusters with 3+ items' } }];\n}\n\nconst proposals = [];\nfor (const cluster of eligible) {\n  const clusterItems = (cluster.item_indices || []).map(idx => items[idx]).filter(Boolean);\n\n  // Collect note page IDs for the Notes relation\n  const noteIds = clusterItems.map(item => item.page_id).filter(Boolean);\n\n  // Collect unique category tags from all items in the cluster\n  const tagSet = new Set();\n  for (const item of clusterItems) {\n    if (item.category_tags) {\n      // category_tags can be string or array\n      const tags = Array.isArray(item.category_tags) ? item.category_tags : [item.category_tags];\n      tags.forEach(t => { if (t) tagSet.add(t); });\n    }\n  }\n  const categoryTags = [...tagSet].slice(0, 5).map(name => ({ name }));\n\n  // Build description from cluster summary + relevance\n  let description = '';\n  if (cluster.summary) description += cluster.summary;\n  if (cluster.relevance) description += '\\n\\nRelevance: ' + cluster.relevance;\n  description = description.substring(0, 2000);\n\n  // Build pitch from content_angle\n  const pitch = (cluster.content_angle || 'Topic cluster from weekly digest \u2014 review and refine angle.').substring(0, 2000);\n\n  // Build the Notion page creation request\n  const requestBody = {\n    parent: { database_id: '2afc0fdf-942d-813e-bafa-fe13acf0b35f' },\n    properties: {\n      'Name': { title: [{ text: { content: cluster.title.substring(0, 200) } }] },\n      'Status': { status: { name: 'Idea' } },\n      'Pitch': { rich_text: [{ text: { content: pitch } }] },\n      'Description': { rich_text: [{ text: { content: description } }] },\n      'Source Type': { select: { name: 'Pipeline Suggested' } },\n      'Content Type': { select: { name: 'Opinion' } },\n      'Notes': { relation: noteIds.slice(0, 100).map(id => ({ id })) },\n      'Report': { relation: reportId ? [{ id: reportId }] : [] },\n      'Category Tags': { multi_select: categoryTags },\n    },\n  };\n\n  proposals.push({\n    json: {\n      requestBody: JSON.stringify(requestBody),\n      clusterTitle: cluster.title,\n      itemCount: clusterItems.length,\n      noteCount: noteIds.length,\n    }\n  });\n}\n\nreturn proposals;"
+        },
+        "id": "prepare-proposals",
+        "name": "Prepare Content Proposals",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2300,
+          500
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/pages",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.requestBody }}",
+          "options": {}
+        },
+        "id": "create-cc-entries",
+        "name": "Create Content Entries",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2600,
+          500
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
       }
     ],
     "connections": {
@@ -1171,6 +1265,11 @@
           [
             {
               "node": "Prepare Note Updates",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Prepare Content Proposals",
               "type": "main",
               "index": 0
             }
@@ -1300,6 +1399,17 @@
             }
           ]
         ]
+      },
+      "Prepare Content Proposals": {
+        "main": [
+          [
+            {
+              "node": "Create Content Entries",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "T-0 Admin",
@@ -1308,10 +1418,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-27T17:05:38.786Z",
-        "id": 474,
+        "createdAt": "2026-03-27T17:31:53.666Z",
+        "id": 492,
         "workflowId": "Td8CIlyau6zkWHrI",
-        "versionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
+        "versionId": "8cd4e219-c304-4c32-bfdc-0a8824f8b768",
         "event": "activated",
         "userId": "f098d803-bf77-453b-abac-36b3806f4345"
       }
