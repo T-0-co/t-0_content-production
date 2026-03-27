@@ -1,0 +1,1320 @@
+{
+  "updatedAt": "2026-03-27T17:05:38.519Z",
+  "createdAt": "2026-03-27T16:41:20.360Z",
+  "id": "Td8CIlyau6zkWHrI",
+  "name": "WF-3: Intelligence Digest",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 9,
+              "triggerAtDay": 1
+            }
+          ]
+        }
+      },
+      "id": "schedule",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "t0-intelligence-digest",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        100
+      ],
+      "webhookId": "wf3-digest"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ status: \"accepted\", message: \"Intelligence digest triggered\" }) }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        600,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { items, count, skip_processing } = $input.first().json;\nif (skip_processing || !items.length) {\n  return [{ json: { skip: true, reason: 'No items to process' } }];\n}\n\n// Build prompt for AI clustering\nconst itemList = items.map((item, i) => {\n  const cats = item.category_tags.join(', ');\n  const tags = item.ai_tags.join(', ');\n  return `[${i}] \"${item.title}\" (${item.source_name || item.origin}) \u2014 Categories: ${cats} \u2014 Tags: ${tags} \u2014 ${item.summary?.substring(0, 150) || ''}`;\n}).join('\\n');\n\nconst prompt = `You are an intelligence analyst for T-0, a company building AI agent infrastructure. Analyze these ${count} collected items and create a weekly intelligence digest.\n\nITEMS:\n${itemList}\n\nTASK:\n1. Group these items into 3-8 topic clusters based on thematic similarity\n2. For each cluster, provide:\n   - A clear, specific title (not generic like \"AI News\")\n   - A 2-3 sentence summary of the cluster theme\n   - Which item indices belong to this cluster (use [N] format)\n   - A relevance assessment: why this matters for T-0\n   - A suggested content angle for a blog post\n\n3. Identify 1-3 \"Signals to Watch\" \u2014 items that don't fit clusters but are individually noteworthy\n\n4. Write a 2-3 paragraph executive summary of the week's intelligence\n\nIMPORTANT:\n- Focus on what matters for T-0: AI agents, automation, MCP protocol, enterprise AI, developer tools, German AI market\n- Every item must be assigned to exactly one cluster OR listed as a signal\n- Be specific in content angles \u2014 \"write about X\" not \"consider writing about Y\"\n\nOUTPUT FORMAT (JSON):\n{\n  \"executive_summary\": \"...\",\n  \"clusters\": [\n    {\n      \"title\": \"...\",\n      \"summary\": \"...\",\n      \"item_indices\": [0, 3, 7],\n      \"relevance\": \"...\",\n      \"content_angle\": \"...\"\n    }\n  ],\n  \"signals\": [\n    {\n      \"item_index\": 5,\n      \"note\": \"...\"\n    }\n  ]\n}`;\n\nreturn [{ json: { prompt, items, count } }];"
+      },
+      "id": "prepare-cluster",
+      "name": "Prepare Clustering",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ model: \"anthropic/claude-sonnet-4\", messages: [{ role: \"user\", content: $json.prompt }], max_tokens: 8000, temperature: 0.3 }) }}",
+        "options": {
+          "timeout": 120000
+        }
+      },
+      "id": "ai-cluster",
+      "name": "AI Cluster",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        300
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
+          "name": "Aarons OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $('Prepare Clustering').first().json.items;\nconst count = $('Prepare Clustering').first().json.count;\nconst aiResp = $input.first().json;\n\nconst content = aiResp.choices?.[0]?.message?.content || '{}';\nconst jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\nlet digest;\ntry {\n  digest = JSON.parse(jsonMatch ? jsonMatch[0] : content);\n} catch(e) {\n  return [{ json: { error: 'Failed to parse AI response: ' + e.message, raw: content.substring(0, 500) } }];\n}\n\n// Build week number\nconst now = new Date();\nconst startOfYear = new Date(now.getFullYear(), 0, 1);\nconst weekNum = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);\n\n// Build report body as markdown\nlet body = `## Summary\\n\\n${digest.executive_summary || 'No summary generated.'}\\n\\n`;\nbody += `## Topic Clusters\\n\\n`;\n\nconst clusters = digest.clusters || [];\nfor (let ci = 0; ci < clusters.length; ci++) {\n  const c = clusters[ci];\n  const clusterItems = (c.item_indices || []).map(idx => items[idx]).filter(Boolean);\n  body += `### ${ci + 1}. ${c.title} (${clusterItems.length} items)\\n`;\n  body += `**Relevance**: ${c.relevance || 'N/A'}\\n`;\n  body += `**Content Angle**: ${c.content_angle || 'N/A'}\\n`;\n  body += `**Items**:\\n`;\n  for (const item of clusterItems) {\n    const date = item.time ? item.time.split('T')[0] : 'N/A';\n    body += `- ${item.title} \u2014 ${item.source_name || item.origin} \u2014 ${date}\\n`;\n  }\n  body += `\\n`;\n}\n\nconst signals = digest.signals || [];\nif (signals.length) {\n  body += `## Signals to Watch\\n\\n`;\n  for (const s of signals) {\n    const item = items[s.item_index];\n    if (item) {\n      body += `- **${item.title}** (${item.source_name || item.origin}): ${s.note || ''}\\n`;\n    }\n  }\n  body += `\\n`;\n}\n\nbody += `## Recommended Actions\\n\\n`;\nfor (let ci = 0; ci < clusters.length; ci++) {\n  const c = clusters[ci];\n  if (c.content_angle) {\n    body += `- [ ] Write post about \"${c.title}\" \u2014 angle: ${c.content_angle}\\n`;\n  }\n}\nfor (const s of signals) {\n  const item = items[s.item_index];\n  if (item) {\n    body += `- [ ] Monitor: ${item.title}\\n`;\n  }\n}\n\n// Collect all note page IDs for the relation\nconst notePageIds = items.map(i => i.page_id);\n\n// Date range for the Time property\nconst oldest = items.length ? items[items.length - 1].time : now.toISOString();\nconst newest = items.length ? items[0].time : now.toISOString();\n\n// Build the report creation request body\nconst reportBody = {\n  parent: { database_id: '2e8c0fdf-942d-8059-8aaa-d2fb0f6f3a4b' },\n  properties: {\n    'Name': { title: [{ text: { content: `Content Intelligence \u2014 KW ${weekNum} ${now.getFullYear()}` } }] },\n    'Time': { date: { start: oldest.split('T')[0], end: newest.split('T')[0] } },\n    'Tags': { multi_select: [{ name: 'Content Intelligence' }, { name: 'Weekly Digest' }] },\n    'Description': { rich_text: [{ text: { content: (digest.executive_summary || '').substring(0, 2000) } }] },\n    'Notes': { relation: notePageIds.slice(0, 100).map(id => ({ id })) },\n    'Agent': { multi_select: [{ name: 'n8n Workflow' }] },\n    'Model': { multi_select: [{ name: 'Opus 4.6' }] },\n  },\n};\n\nreturn [{ json: {\n  requestBody: JSON.stringify(reportBody),\n  reportBody: body,\n  notePageIds,\n  noteCount: notePageIds.length,\n  clusterCount: clusters.length,\n  signalCount: signals.length,\n  weekLabel: `KW ${weekNum} ${now.getFullYear()}`,\n} }];"
+      },
+      "id": "parse-clusters",
+      "name": "Parse Clusters & Build Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "create-report",
+      "name": "Create Report",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1600,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const reportBody = $('Parse Clusters & Build Report').first().json.reportBody;\nconst reportId = $input.first().json.id;\n\nif (!reportId) {\n  return [{ json: { error: 'No report ID from Create Report' } }];\n}\n\n// Split markdown into blocks for Notion\n// Notion API supports: heading_2, heading_3, paragraph, to_do, bulleted_list_item\nconst lines = reportBody.split('\\n');\nconst children = [];\n\nfor (const line of lines) {\n  const trimmed = line.trim();\n  if (!trimmed) continue;\n\n  if (trimmed.startsWith('## ')) {\n    children.push({\n      object: 'block',\n      type: 'heading_2',\n      heading_2: { rich_text: [{ type: 'text', text: { content: trimmed.replace('## ', '') } }] }\n    });\n  } else if (trimmed.startsWith('### ')) {\n    children.push({\n      object: 'block',\n      type: 'heading_3',\n      heading_3: { rich_text: [{ type: 'text', text: { content: trimmed.replace('### ', '') } }] }\n    });\n  } else if (trimmed.startsWith('- [ ] ')) {\n    children.push({\n      object: 'block',\n      type: 'to_do',\n      to_do: { rich_text: [{ type: 'text', text: { content: trimmed.replace('- [ ] ', '') } }], checked: false }\n    });\n  } else if (trimmed.startsWith('- ')) {\n    // Parse bold text\n    const text = trimmed.replace('- ', '');\n    const parts = [];\n    let remaining = text;\n    const boldRegex = /\\*\\*([^*]+)\\*\\*/g;\n    let lastIdx = 0;\n    let match;\n    while ((match = boldRegex.exec(text)) !== null) {\n      if (match.index > lastIdx) {\n        parts.push({ type: 'text', text: { content: text.substring(lastIdx, match.index) } });\n      }\n      parts.push({ type: 'text', text: { content: match[1] }, annotations: { bold: true } });\n      lastIdx = match.index + match[0].length;\n    }\n    if (lastIdx < text.length) {\n      parts.push({ type: 'text', text: { content: text.substring(lastIdx) } });\n    }\n    children.push({\n      object: 'block',\n      type: 'bulleted_list_item',\n      bulleted_list_item: { rich_text: parts.length ? parts : [{ type: 'text', text: { content: text } }] }\n    });\n  } else if (trimmed.startsWith('**')) {\n    // Bold line (like **Relevance**: ...)\n    const parts = [];\n    const boldRegex = /\\*\\*([^*]+)\\*\\*/g;\n    let lastIdx = 0;\n    let match;\n    while ((match = boldRegex.exec(trimmed)) !== null) {\n      if (match.index > lastIdx) {\n        parts.push({ type: 'text', text: { content: trimmed.substring(lastIdx, match.index) } });\n      }\n      parts.push({ type: 'text', text: { content: match[1] }, annotations: { bold: true } });\n      lastIdx = match.index + match[0].length;\n    }\n    if (lastIdx < trimmed.length) {\n      parts.push({ type: 'text', text: { content: trimmed.substring(lastIdx) } });\n    }\n    children.push({\n      object: 'block',\n      type: 'paragraph',\n      paragraph: { rich_text: parts }\n    });\n  } else {\n    children.push({\n      object: 'block',\n      type: 'paragraph',\n      paragraph: { rich_text: [{ type: 'text', text: { content: trimmed } }] }\n    });\n  }\n}\n\n// Notion API limits to 100 children per request\nconst batch = children.slice(0, 100);\nconst requestBody = JSON.stringify({ children: batch });\n\nreturn [{ json: { reportId, requestBody, blockCount: batch.length } }];"
+      },
+      "id": "add-body",
+      "name": "Add Report Body",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/blocks/{{ $json.reportId }}/children",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "append-blocks",
+      "name": "Append Report Blocks",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2000,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const notePageIds = $('Parse Clusters & Build Report').first().json.notePageIds;\n\n// Output one item per note to update\nconst updates = notePageIds.map(id => ({\n  json: {\n    requestBody: JSON.stringify({\n      properties: {\n        'Status': { status: { name: 'Currently Relevant' } }\n      }\n    }),\n    pageId: id,\n  }\n}));\n\nreturn updates;"
+      },
+      "id": "prepare-updates",
+      "name": "Prepare Note Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.notion.com/v1/pages/{{ $json.pageId }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "update-note",
+      "name": "Update Note Status",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filter: { and: [ { property: \"Created time\", created_time: { on_or_after: new Date(Date.now() - 8 * 86400000).toISOString().split(\"T\")[0] } }, { property: \"Status\", status: { equals: \"To Be Processed\" } } ] }, sorts: [{ timestamp: \"created_time\", direction: \"descending\" }], page_size: 100 }) }}",
+        "options": {}
+      },
+      "id": "fetch-notes-p1",
+      "name": "Fetch Notes Page 1",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        600,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const resp = $input.first().json;\nconst results = resp.results || [];\nconst hasMore = resp.has_more || false;\nconst cursor = resp.next_cursor || null;\nreturn [{ json: { results, hasMore, cursor, pageCount: 1, totalSoFar: results.length } }];"
+      },
+      "id": "check-page1",
+      "name": "Check Page 1",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        800,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-more-check",
+              "leftValue": "={{ $json.hasMore }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-more-p1",
+      "name": "Has More Pages?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1000,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filter: { and: [ { property: \"Created time\", created_time: { on_or_after: new Date(Date.now() - 8 * 86400000).toISOString().split(\"T\")[0] } }, { property: \"Status\", status: { equals: \"To Be Processed\" } } ] }, sorts: [{ timestamp: \"created_time\", direction: \"descending\" }], page_size: 100, start_cursor: $json.cursor }) }}",
+        "options": {}
+      },
+      "id": "fetch-notes-p2",
+      "name": "Fetch Notes Page 2",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1200,
+        200
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const page1 = $('Check Page 1').first().json;\nconst page2Resp = $input.first().json;\nconst page2Results = page2Resp.results || [];\nconst allResults = [...page1.results, ...page2Results];\nconst hasMore = page2Resp.has_more || false;\nconst cursor = page2Resp.next_cursor || null;\nreturn [{ json: { results: allResults, hasMore, cursor, pageCount: 2, totalSoFar: allResults.length } }];"
+      },
+      "id": "merge-page2",
+      "name": "Merge Page 2",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-more-check-2",
+              "leftValue": "={{ $json.hasMore }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-more-p2",
+      "name": "Has More Pages 2?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        1600,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ filter: { and: [ { property: \"Created time\", created_time: { on_or_after: new Date(Date.now() - 8 * 86400000).toISOString().split(\"T\")[0] } }, { property: \"Status\", status: { equals: \"To Be Processed\" } } ] }, sorts: [{ timestamp: \"created_time\", direction: \"descending\" }], page_size: 100, start_cursor: $json.cursor }) }}",
+        "options": {}
+      },
+      "id": "fetch-notes-p3",
+      "name": "Fetch Notes Page 3",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        100
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const prev = $('Has More Pages 2?').first()?.json || $('Merge Page 2').first()?.json;\nconst page3Resp = $input.first().json;\nconst page3Results = page3Resp.results || [];\nconst allResults = [...(prev.results || []), ...page3Results];\nreturn [{ json: { results: allResults, totalSoFar: allResults.length, pageCount: 3 } }];"
+      },
+      "id": "merge-page3",
+      "name": "Merge Page 3",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Try to get results from the latest merge point\nlet allResults;\ntry { allResults = $('Merge Page 3').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Merge Page 2').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Check Page 1').first()?.json?.results; } catch(e) {}\nif (!allResults) allResults = $input.first().json.results || [];\n\nif (!allResults.length) {\n  return [{ json: { items: [], count: 0, skip_processing: true } }];\n}\n\nconst items = allResults.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const url = p['URL']?.url || '';\n  const time = p['Time']?.date?.start || '';\n  const summary = (p['Summary']?.rich_text || []).map(t => t.plain_text).join('');\n  const description = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const origin = p['Origin']?.select?.name || '';\n  const originDesc = (p['Origin Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const sourceName = (p['Source']?.relation || []).length > 0 ? originDesc.replace(/ \\(.*\\)$| RSS$/, '') : '';\n  const cats = (p['Category Tags']?.multi_select || []).map(o => o.name);\n  const aiTags = (p['AI-Tags']?.multi_select || []).map(o => o.name);\n  const status = p['Status']?.status?.name || '';\n  return { page_id: page.id, title, url, time, summary: summary || description, origin, origin_description: originDesc, source_name: sourceName, category_tags: cats, ai_tags: aiTags, status };\n}).filter(i => i.title);\n\nreturn [{ json: { items, count: items.length, skip_processing: false } }];"
+      },
+      "id": "extract-notes-new",
+      "name": "Extract Notes",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2200,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch Notes Page 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Notes Page 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Clustering": {
+      "main": [
+        [
+          {
+            "node": "AI Cluster",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Cluster": {
+      "main": [
+        [
+          {
+            "node": "Parse Clusters & Build Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Clusters & Build Report": {
+      "main": [
+        [
+          {
+            "node": "Create Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Report": {
+      "main": [
+        [
+          {
+            "node": "Add Report Body",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Report Body": {
+      "main": [
+        [
+          {
+            "node": "Append Report Blocks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Report Blocks": {
+      "main": [
+        [
+          {
+            "node": "Prepare Note Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Note Updates": {
+      "main": [
+        [
+          {
+            "node": "Update Note Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Notes Page 1": {
+      "main": [
+        [
+          {
+            "node": "Check Page 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Page 1": {
+      "main": [
+        [
+          {
+            "node": "Has More Pages?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has More Pages?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Notes Page 2",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Notes Page 2": {
+      "main": [
+        [
+          {
+            "node": "Merge Page 2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Page 2": {
+      "main": [
+        [
+          {
+            "node": "Has More Pages 2?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has More Pages 2?": {
+      "main": [
+        [
+          {
+            "node": "Fetch Notes Page 3",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Extract Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Notes Page 3": {
+      "main": [
+        [
+          {
+            "node": "Merge Page 3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Page 3": {
+      "main": [
+        [
+          {
+            "node": "Extract Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Notes": {
+      "main": [
+        [
+          {
+            "node": "Prepare Clustering",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "errorWorkflow": "de8FXOcXmNSCh6kd",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
+  "activeVersionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
+  "versionCounter": 12,
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-03-27T16:41:20.360Z",
+      "createdAt": "2026-03-27T16:41:20.360Z",
+      "role": "workflow:owner",
+      "workflowId": "Td8CIlyau6zkWHrI",
+      "projectId": "c21e32e5-2828-4748-8c02-64f3e520336a",
+      "project": {
+        "updatedAt": "2026-01-08T10:38:10.372Z",
+        "createdAt": "2026-01-08T10:38:10.372Z",
+        "id": "c21e32e5-2828-4748-8c02-64f3e520336a",
+        "name": "T-0 Admin Personal",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "f098d803-bf77-453b-abac-36b3806f4345"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-03-27T17:05:38.525Z",
+    "createdAt": "2026-03-27T17:05:38.525Z",
+    "versionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
+    "workflowId": "Td8CIlyau6zkWHrI",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "triggerAtHour": 9,
+                "triggerAtDay": 1
+              }
+            ]
+          }
+        },
+        "id": "schedule",
+        "name": "Schedule Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          200,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "t0-intelligence-digest",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          200,
+          100
+        ],
+        "webhookId": "wf3-digest"
+      },
+      {
+        "parameters": {
+          "respondWith": "json",
+          "responseBody": "={{ JSON.stringify({ status: \"accepted\", message: \"Intelligence digest triggered\" }) }}",
+          "options": {}
+        },
+        "id": "respond",
+        "name": "Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          600,
+          100
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const { items, count, skip_processing } = $input.first().json;\nif (skip_processing || !items.length) {\n  return [{ json: { skip: true, reason: 'No items to process' } }];\n}\n\n// Build prompt for AI clustering\nconst itemList = items.map((item, i) => {\n  const cats = item.category_tags.join(', ');\n  const tags = item.ai_tags.join(', ');\n  return `[${i}] \"${item.title}\" (${item.source_name || item.origin}) \u2014 Categories: ${cats} \u2014 Tags: ${tags} \u2014 ${item.summary?.substring(0, 150) || ''}`;\n}).join('\\n');\n\nconst prompt = `You are an intelligence analyst for T-0, a company building AI agent infrastructure. Analyze these ${count} collected items and create a weekly intelligence digest.\n\nITEMS:\n${itemList}\n\nTASK:\n1. Group these items into 3-8 topic clusters based on thematic similarity\n2. For each cluster, provide:\n   - A clear, specific title (not generic like \"AI News\")\n   - A 2-3 sentence summary of the cluster theme\n   - Which item indices belong to this cluster (use [N] format)\n   - A relevance assessment: why this matters for T-0\n   - A suggested content angle for a blog post\n\n3. Identify 1-3 \"Signals to Watch\" \u2014 items that don't fit clusters but are individually noteworthy\n\n4. Write a 2-3 paragraph executive summary of the week's intelligence\n\nIMPORTANT:\n- Focus on what matters for T-0: AI agents, automation, MCP protocol, enterprise AI, developer tools, German AI market\n- Every item must be assigned to exactly one cluster OR listed as a signal\n- Be specific in content angles \u2014 \"write about X\" not \"consider writing about Y\"\n\nOUTPUT FORMAT (JSON):\n{\n  \"executive_summary\": \"...\",\n  \"clusters\": [\n    {\n      \"title\": \"...\",\n      \"summary\": \"...\",\n      \"item_indices\": [0, 3, 7],\n      \"relevance\": \"...\",\n      \"content_angle\": \"...\"\n    }\n  ],\n  \"signals\": [\n    {\n      \"item_index\": 5,\n      \"note\": \"...\"\n    }\n  ]\n}`;\n\nreturn [{ json: { prompt, items, count } }];"
+        },
+        "id": "prepare-cluster",
+        "name": "Prepare Clustering",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1000,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://openrouter.ai/api/v1/chat/completions",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "openRouterApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ model: \"anthropic/claude-sonnet-4\", messages: [{ role: \"user\", content: $json.prompt }], max_tokens: 8000, temperature: 0.3 }) }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "id": "ai-cluster",
+        "name": "AI Cluster",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1200,
+          300
+        ],
+        "credentials": {
+          "openRouterApi": {
+            "id": "zxXiCGlCYD4JGQDr",
+            "name": "Aarons OpenRouter account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const items = $('Prepare Clustering').first().json.items;\nconst count = $('Prepare Clustering').first().json.count;\nconst aiResp = $input.first().json;\n\nconst content = aiResp.choices?.[0]?.message?.content || '{}';\nconst jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\nlet digest;\ntry {\n  digest = JSON.parse(jsonMatch ? jsonMatch[0] : content);\n} catch(e) {\n  return [{ json: { error: 'Failed to parse AI response: ' + e.message, raw: content.substring(0, 500) } }];\n}\n\n// Build week number\nconst now = new Date();\nconst startOfYear = new Date(now.getFullYear(), 0, 1);\nconst weekNum = Math.ceil(((now - startOfYear) / 86400000 + startOfYear.getDay() + 1) / 7);\n\n// Build report body as markdown\nlet body = `## Summary\\n\\n${digest.executive_summary || 'No summary generated.'}\\n\\n`;\nbody += `## Topic Clusters\\n\\n`;\n\nconst clusters = digest.clusters || [];\nfor (let ci = 0; ci < clusters.length; ci++) {\n  const c = clusters[ci];\n  const clusterItems = (c.item_indices || []).map(idx => items[idx]).filter(Boolean);\n  body += `### ${ci + 1}. ${c.title} (${clusterItems.length} items)\\n`;\n  body += `**Relevance**: ${c.relevance || 'N/A'}\\n`;\n  body += `**Content Angle**: ${c.content_angle || 'N/A'}\\n`;\n  body += `**Items**:\\n`;\n  for (const item of clusterItems) {\n    const date = item.time ? item.time.split('T')[0] : 'N/A';\n    body += `- ${item.title} \u2014 ${item.source_name || item.origin} \u2014 ${date}\\n`;\n  }\n  body += `\\n`;\n}\n\nconst signals = digest.signals || [];\nif (signals.length) {\n  body += `## Signals to Watch\\n\\n`;\n  for (const s of signals) {\n    const item = items[s.item_index];\n    if (item) {\n      body += `- **${item.title}** (${item.source_name || item.origin}): ${s.note || ''}\\n`;\n    }\n  }\n  body += `\\n`;\n}\n\nbody += `## Recommended Actions\\n\\n`;\nfor (let ci = 0; ci < clusters.length; ci++) {\n  const c = clusters[ci];\n  if (c.content_angle) {\n    body += `- [ ] Write post about \"${c.title}\" \u2014 angle: ${c.content_angle}\\n`;\n  }\n}\nfor (const s of signals) {\n  const item = items[s.item_index];\n  if (item) {\n    body += `- [ ] Monitor: ${item.title}\\n`;\n  }\n}\n\n// Collect all note page IDs for the relation\nconst notePageIds = items.map(i => i.page_id);\n\n// Date range for the Time property\nconst oldest = items.length ? items[items.length - 1].time : now.toISOString();\nconst newest = items.length ? items[0].time : now.toISOString();\n\n// Build the report creation request body\nconst reportBody = {\n  parent: { database_id: '2e8c0fdf-942d-8059-8aaa-d2fb0f6f3a4b' },\n  properties: {\n    'Name': { title: [{ text: { content: `Content Intelligence \u2014 KW ${weekNum} ${now.getFullYear()}` } }] },\n    'Time': { date: { start: oldest.split('T')[0], end: newest.split('T')[0] } },\n    'Tags': { multi_select: [{ name: 'Content Intelligence' }, { name: 'Weekly Digest' }] },\n    'Description': { rich_text: [{ text: { content: (digest.executive_summary || '').substring(0, 2000) } }] },\n    'Notes': { relation: notePageIds.slice(0, 100).map(id => ({ id })) },\n    'Agent': { multi_select: [{ name: 'n8n Workflow' }] },\n    'Model': { multi_select: [{ name: 'Opus 4.6' }] },\n  },\n};\n\nreturn [{ json: {\n  requestBody: JSON.stringify(reportBody),\n  reportBody: body,\n  notePageIds,\n  noteCount: notePageIds.length,\n  clusterCount: clusters.length,\n  signalCount: signals.length,\n  weekLabel: `KW ${weekNum} ${now.getFullYear()}`,\n} }];"
+        },
+        "id": "parse-clusters",
+        "name": "Parse Clusters & Build Report",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1400,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/pages",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.requestBody }}",
+          "options": {}
+        },
+        "id": "create-report",
+        "name": "Create Report",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1600,
+          300
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const reportBody = $('Parse Clusters & Build Report').first().json.reportBody;\nconst reportId = $input.first().json.id;\n\nif (!reportId) {\n  return [{ json: { error: 'No report ID from Create Report' } }];\n}\n\n// Split markdown into blocks for Notion\n// Notion API supports: heading_2, heading_3, paragraph, to_do, bulleted_list_item\nconst lines = reportBody.split('\\n');\nconst children = [];\n\nfor (const line of lines) {\n  const trimmed = line.trim();\n  if (!trimmed) continue;\n\n  if (trimmed.startsWith('## ')) {\n    children.push({\n      object: 'block',\n      type: 'heading_2',\n      heading_2: { rich_text: [{ type: 'text', text: { content: trimmed.replace('## ', '') } }] }\n    });\n  } else if (trimmed.startsWith('### ')) {\n    children.push({\n      object: 'block',\n      type: 'heading_3',\n      heading_3: { rich_text: [{ type: 'text', text: { content: trimmed.replace('### ', '') } }] }\n    });\n  } else if (trimmed.startsWith('- [ ] ')) {\n    children.push({\n      object: 'block',\n      type: 'to_do',\n      to_do: { rich_text: [{ type: 'text', text: { content: trimmed.replace('- [ ] ', '') } }], checked: false }\n    });\n  } else if (trimmed.startsWith('- ')) {\n    // Parse bold text\n    const text = trimmed.replace('- ', '');\n    const parts = [];\n    let remaining = text;\n    const boldRegex = /\\*\\*([^*]+)\\*\\*/g;\n    let lastIdx = 0;\n    let match;\n    while ((match = boldRegex.exec(text)) !== null) {\n      if (match.index > lastIdx) {\n        parts.push({ type: 'text', text: { content: text.substring(lastIdx, match.index) } });\n      }\n      parts.push({ type: 'text', text: { content: match[1] }, annotations: { bold: true } });\n      lastIdx = match.index + match[0].length;\n    }\n    if (lastIdx < text.length) {\n      parts.push({ type: 'text', text: { content: text.substring(lastIdx) } });\n    }\n    children.push({\n      object: 'block',\n      type: 'bulleted_list_item',\n      bulleted_list_item: { rich_text: parts.length ? parts : [{ type: 'text', text: { content: text } }] }\n    });\n  } else if (trimmed.startsWith('**')) {\n    // Bold line (like **Relevance**: ...)\n    const parts = [];\n    const boldRegex = /\\*\\*([^*]+)\\*\\*/g;\n    let lastIdx = 0;\n    let match;\n    while ((match = boldRegex.exec(trimmed)) !== null) {\n      if (match.index > lastIdx) {\n        parts.push({ type: 'text', text: { content: trimmed.substring(lastIdx, match.index) } });\n      }\n      parts.push({ type: 'text', text: { content: match[1] }, annotations: { bold: true } });\n      lastIdx = match.index + match[0].length;\n    }\n    if (lastIdx < trimmed.length) {\n      parts.push({ type: 'text', text: { content: trimmed.substring(lastIdx) } });\n    }\n    children.push({\n      object: 'block',\n      type: 'paragraph',\n      paragraph: { rich_text: parts }\n    });\n  } else {\n    children.push({\n      object: 'block',\n      type: 'paragraph',\n      paragraph: { rich_text: [{ type: 'text', text: { content: trimmed } }] }\n    });\n  }\n}\n\n// Notion API limits to 100 children per request\nconst batch = children.slice(0, 100);\nconst requestBody = JSON.stringify({ children: batch });\n\nreturn [{ json: { reportId, requestBody, blockCount: batch.length } }];"
+        },
+        "id": "add-body",
+        "name": "Add Report Body",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1800,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://api.notion.com/v1/blocks/{{ $json.reportId }}/children",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.requestBody }}",
+          "options": {}
+        },
+        "id": "append-blocks",
+        "name": "Append Report Blocks",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2000,
+          300
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const notePageIds = $('Parse Clusters & Build Report').first().json.notePageIds;\n\n// Output one item per note to update\nconst updates = notePageIds.map(id => ({\n  json: {\n    requestBody: JSON.stringify({\n      properties: {\n        'Status': { status: { name: 'Currently Relevant' } }\n      }\n    }),\n    pageId: id,\n  }\n}));\n\nreturn updates;"
+        },
+        "id": "prepare-updates",
+        "name": "Prepare Note Updates",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2200,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "=https://api.notion.com/v1/pages/{{ $json.pageId }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.requestBody }}",
+          "options": {}
+        },
+        "id": "update-note",
+        "name": "Update Note Status",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2400,
+          300
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filter: { and: [ { property: \"Created time\", created_time: { on_or_after: new Date(Date.now() - 8 * 86400000).toISOString().split(\"T\")[0] } }, { property: \"Status\", status: { equals: \"To Be Processed\" } } ] }, sorts: [{ timestamp: \"created_time\", direction: \"descending\" }], page_size: 100 }) }}",
+          "options": {}
+        },
+        "id": "fetch-notes-p1",
+        "name": "Fetch Notes Page 1",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          600,
+          300
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const resp = $input.first().json;\nconst results = resp.results || [];\nconst hasMore = resp.has_more || false;\nconst cursor = resp.next_cursor || null;\nreturn [{ json: { results, hasMore, cursor, pageCount: 1, totalSoFar: results.length } }];"
+        },
+        "id": "check-page1",
+        "name": "Check Page 1",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          800,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "has-more-check",
+                "leftValue": "={{ $json.hasMore }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-more-p1",
+        "name": "Has More Pages?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1000,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filter: { and: [ { property: \"Created time\", created_time: { on_or_after: new Date(Date.now() - 8 * 86400000).toISOString().split(\"T\")[0] } }, { property: \"Status\", status: { equals: \"To Be Processed\" } } ] }, sorts: [{ timestamp: \"created_time\", direction: \"descending\" }], page_size: 100, start_cursor: $json.cursor }) }}",
+          "options": {}
+        },
+        "id": "fetch-notes-p2",
+        "name": "Fetch Notes Page 2",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1200,
+          200
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const page1 = $('Check Page 1').first().json;\nconst page2Resp = $input.first().json;\nconst page2Results = page2Resp.results || [];\nconst allResults = [...page1.results, ...page2Results];\nconst hasMore = page2Resp.has_more || false;\nconst cursor = page2Resp.next_cursor || null;\nreturn [{ json: { results: allResults, hasMore, cursor, pageCount: 2, totalSoFar: allResults.length } }];"
+        },
+        "id": "merge-page2",
+        "name": "Merge Page 2",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1400,
+          200
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict"
+            },
+            "conditions": [
+              {
+                "id": "has-more-check-2",
+                "leftValue": "={{ $json.hasMore }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "equals",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "id": "if-more-p2",
+        "name": "Has More Pages 2?",
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.2,
+        "position": [
+          1600,
+          200
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ JSON.stringify({ filter: { and: [ { property: \"Created time\", created_time: { on_or_after: new Date(Date.now() - 8 * 86400000).toISOString().split(\"T\")[0] } }, { property: \"Status\", status: { equals: \"To Be Processed\" } } ] }, sorts: [{ timestamp: \"created_time\", direction: \"descending\" }], page_size: 100, start_cursor: $json.cursor }) }}",
+          "options": {}
+        },
+        "id": "fetch-notes-p3",
+        "name": "Fetch Notes Page 3",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1800,
+          100
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const prev = $('Has More Pages 2?').first()?.json || $('Merge Page 2').first()?.json;\nconst page3Resp = $input.first().json;\nconst page3Results = page3Resp.results || [];\nconst allResults = [...(prev.results || []), ...page3Results];\nreturn [{ json: { results: allResults, totalSoFar: allResults.length, pageCount: 3 } }];"
+        },
+        "id": "merge-page3",
+        "name": "Merge Page 3",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2000,
+          100
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Try to get results from the latest merge point\nlet allResults;\ntry { allResults = $('Merge Page 3').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Merge Page 2').first()?.json?.results; } catch(e) {}\nif (!allResults) try { allResults = $('Check Page 1').first()?.json?.results; } catch(e) {}\nif (!allResults) allResults = $input.first().json.results || [];\n\nif (!allResults.length) {\n  return [{ json: { items: [], count: 0, skip_processing: true } }];\n}\n\nconst items = allResults.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const url = p['URL']?.url || '';\n  const time = p['Time']?.date?.start || '';\n  const summary = (p['Summary']?.rich_text || []).map(t => t.plain_text).join('');\n  const description = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const origin = p['Origin']?.select?.name || '';\n  const originDesc = (p['Origin Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const sourceName = (p['Source']?.relation || []).length > 0 ? originDesc.replace(/ \\(.*\\)$| RSS$/, '') : '';\n  const cats = (p['Category Tags']?.multi_select || []).map(o => o.name);\n  const aiTags = (p['AI-Tags']?.multi_select || []).map(o => o.name);\n  const status = p['Status']?.status?.name || '';\n  return { page_id: page.id, title, url, time, summary: summary || description, origin, origin_description: originDesc, source_name: sourceName, category_tags: cats, ai_tags: aiTags, status };\n}).filter(i => i.title);\n\nreturn [{ json: { items, count: items.length, skip_processing: false } }];"
+        },
+        "id": "extract-notes-new",
+        "name": "Extract Notes",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2200,
+          300
+        ]
+      }
+    ],
+    "connections": {
+      "Schedule Trigger": {
+        "main": [
+          [
+            {
+              "node": "Fetch Notes Page 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Respond",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Notes Page 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Clustering": {
+        "main": [
+          [
+            {
+              "node": "AI Cluster",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Cluster": {
+        "main": [
+          [
+            {
+              "node": "Parse Clusters & Build Report",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Clusters & Build Report": {
+        "main": [
+          [
+            {
+              "node": "Create Report",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Create Report": {
+        "main": [
+          [
+            {
+              "node": "Add Report Body",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Add Report Body": {
+        "main": [
+          [
+            {
+              "node": "Append Report Blocks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Append Report Blocks": {
+        "main": [
+          [
+            {
+              "node": "Prepare Note Updates",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Note Updates": {
+        "main": [
+          [
+            {
+              "node": "Update Note Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Notes Page 1": {
+        "main": [
+          [
+            {
+              "node": "Check Page 1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Check Page 1": {
+        "main": [
+          [
+            {
+              "node": "Has More Pages?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has More Pages?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Notes Page 2",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Extract Notes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Notes Page 2": {
+        "main": [
+          [
+            {
+              "node": "Merge Page 2",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Page 2": {
+        "main": [
+          [
+            {
+              "node": "Has More Pages 2?",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Has More Pages 2?": {
+        "main": [
+          [
+            {
+              "node": "Fetch Notes Page 3",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Extract Notes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Notes Page 3": {
+        "main": [
+          [
+            {
+              "node": "Merge Page 3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Page 3": {
+        "main": [
+          [
+            {
+              "node": "Extract Notes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Notes": {
+        "main": [
+          [
+            {
+              "node": "Prepare Clustering",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "T-0 Admin",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-03-27T17:05:38.786Z",
+        "id": 474,
+        "workflowId": "Td8CIlyau6zkWHrI",
+        "versionId": "d3121c34-4cfc-4801-b028-adebf44e92b9",
+        "event": "activated",
+        "userId": "f098d803-bf77-453b-abac-36b3806f4345"
+      }
+    ]
+  }
+}

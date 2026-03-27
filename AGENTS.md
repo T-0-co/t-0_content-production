@@ -16,6 +16,9 @@ Autonomous content pipeline: source ingestion (RSS + Slack #tech-shit-talk) → 
 | Resource | Database ID | Data Source ID | Purpose |
 |----------|-------------|----------------|---------|
 | Content Creation | `2afc0fdf-942d-813e-bafa-fe13acf0b35f` | `2afc0fdf-942d-81b6-9bff-000be4682a2d` | Content tracking (Idea → Published) |
+| Content Sources | `330c0fdf-942d-81b8-a839-fe9ea3c9ad15` | — | Source registry (blogs, feeds, alerts) |
+| Notes | `2afc0fdf-942d-819a-b859-e69dcc48d67d` | `2afc0fdf-942d-812c-975d-000b9108667f` | Raw items + manual notes + Slack captures |
+| Reports | `2e8c0fdf-942d-8059-8aaa-d2fb0f6f3a4b` | `2e8c0fdf-942d-803b-b059-000bc702d4c3` | Periodic intelligence digests |
 
 MCP server: `mcp__claude_ai_Notion__*`
 

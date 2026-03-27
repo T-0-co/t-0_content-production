@@ -44,3 +44,10 @@ cta:
   type: soft
   default_label: "Schreib uns"
   opinion_pieces_cta: none
+
+source_ingestion:
+  relevance_threshold: 3          # AI triage gate: items scoring below this are discarded
+  lookback_days: 7                # RSS items older than this are filtered out
+  dedup_title_threshold: 0.85     # Fuzzy title match cutoff (0-1)
+  dedup_lookback_days: 30         # Window for title dedup comparison
+  max_items_per_source: 20        # Cap per source per run (prevents ArXiv/HN floods)

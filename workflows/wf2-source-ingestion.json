@@ -1,0 +1,1482 @@
+{
+  "updatedAt": "2026-03-27T17:10:18.054Z",
+  "createdAt": "2026-03-27T14:14:01.996Z",
+  "id": "U9YvA64bwIMur9Df",
+  "name": "WF-2: Source Ingestion",
+  "description": null,
+  "active": true,
+  "isArchived": false,
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 8,
+              "triggerAtDay": 7
+            }
+          ]
+        }
+      },
+      "id": "sched",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "t0-source-ingestion",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "t0-source-ingestion"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={\"status\":\"accepted\",\"message\":\"Source ingestion triggered\"}",
+        "options": {
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          }
+        }
+      },
+      "id": "respond",
+      "name": "Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        240,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst isWebhook = !!item?.json?.body;\nconst body = item?.json?.body || {};\nreturn [{ json: {\n  trigger: isWebhook ? 'webhook' : 'schedule',\n  mode: body.mode || 'rss',\n  source_id: body.source_id || null,\n  triggered_at: new Date().toISOString()\n}}];"
+      },
+      "id": "parse",
+      "name": "Parse Mode",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/330c0fdf-942d-81b8-a839-fe9ea3c9ad15/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\"filter\": {\"and\": [{\"property\": \"Status\", \"status\": {\"equals\": \"Active\"}}, {\"or\": [{\"property\": \"Access Method\", \"select\": {\"equals\": \"RSS\"}}, {\"property\": \"Access Method\", \"select\": {\"equals\": \"Jina\"}}, {\"property\": \"Access Method\", \"select\": {\"equals\": \"Slack API\"}}]}]}, \"page_size\": 100}",
+        "options": {}
+      },
+      "id": "fetch-src",
+      "name": "Fetch RSS Sources",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        680,
+        150
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = $input.first().json.results || [];\nif (!results.length) return [{ json: { sources: [], count: 0 } }];\n\nconst sources = results.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const feedUrl = p['Feed URL']?.url;\n  const url = p['URL']?.url;\n  const lang = p['Language']?.select?.name || 'EN';\n  const cats = (p['Category Tags']?.multi_select || []).map(o => o.name);\n  const desc = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const method = p['Access Method']?.select?.name || 'RSS';\n  return { page_id: page.id, name: title, feed_url: feedUrl, url, language: lang,\n           category_tags: cats, description: desc, access_method: method };\n}).filter(s => s.feed_url || s.access_method === 'Jina' || s.access_method === 'Slack API');\n\nreturn [{ json: { sources, count: sources.length } }];"
+      },
+      "id": "extract",
+      "name": "Extract Sources",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        920,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const { sources } = $input.first().json;\nconst LOOKBACK_DAYS = 7;\nconst MAX_PER_SOURCE = 20;\nconst cutoff = new Date(Date.now() - LOOKBACK_DAYS * 86400000);\n\nfunction clean(t) {\n  return (t||'').replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<')\n    .replace(/&gt;/g,'>').replace(/&quot;/g,'\"').replace(/&#0?39;/g,\"'\")\n    .replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();\n}\n\nfunction parseRss(xml) {\n  const items = [];\n  const rss = /<item[^>]*>([\\s\\S]*?)<\\/item>/gi;\n  let m;\n  while ((m = rss.exec(xml)) !== null) {\n    const x = m[1];\n    items.push({\n      title: clean((x.match(/<title[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/title>/i)||[])[1]||''),\n      link: ((x.match(/<link[^>]*>([\\s\\S]*?)<\\/link>/i)||[])[1]||'').trim(),\n      date: ((x.match(/<pubDate[^>]*>([\\s\\S]*?)<\\/pubDate>/i)||[])[1]||'').trim(),\n      desc: clean((x.match(/<description[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/description>/i)||[])[1]||''),\n      author: clean((x.match(/<(?:dc:creator|author)[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/(?:dc:creator|author)>/i)||[])[1]||''),\n    });\n  }\n  if (!items.length) {\n    const atom = /<entry[^>]*>([\\s\\S]*?)<\\/entry>/gi;\n    while ((m = atom.exec(xml)) !== null) {\n      const x = m[1];\n      items.push({\n        title: clean((x.match(/<title[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/title>/i)||[])[1]||''),\n        link: ((x.match(/<link[^>]*href=[\"']([^\"']*)[\"']/i)||[])[1]||'').trim(),\n        date: ((x.match(/<(?:published|updated)[^>]*>([\\s\\S]*?)<\\/(?:published|updated)>/i)||[])[1]||'').trim(),\n        desc: clean((x.match(/<(?:summary|content)[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/(?:summary|content)>/i)||[])[1]||''),\n        author: clean((x.match(/<author[^>]*>[\\s\\S]*?<name[^>]*>([\\s\\S]*?)<\\/name>/i)||[])[1]||''),\n      });\n    }\n  }\n  return items;\n}\n\n// Parse articles from Jina reader JSON response (markdown with inline links)\n// NOTE: Uses regex for URL parsing because n8n task runner sandbox lacks URL constructor\nfunction parseHost(urlStr) {\n  const m = urlStr.match(/^https?:\\/\\/(?:www\\.)?([^\\/\\?#]+)/i);\n  return m ? m[1] : '';\n}\nfunction parsePath(urlStr) {\n  const m = urlStr.match(/^https?:\\/\\/[^\\/]+(\\/[^?#]*)/i);\n  return m ? m[1] : '/';\n}\n\nfunction parseJinaPage(resp, sourceUrl) {\n  const dateRegex = /(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\s+\\d{1,2},?\\s+\\d{4}/i;\n  const data = resp.data || resp;\n  const content = data.content || (typeof data === 'string' ? data : '');\n  if (!content) return [];\n\n  const sourceHost = parseHost(sourceUrl);\n  if (!sourceHost) return [];\n\n  // Extract markdown links: [text](url)\n  const linkRegex = /\\[([^\\]]{10,})\\]\\((https?:\\/\\/[^)]+)\\)/g;\n  const articles = [];\n  const seenUrls = new Set();\n  let match;\n\n  while ((match = linkRegex.exec(content)) !== null) {\n    const text = match[1].trim();\n    const url = match[2].trim();\n\n    if (url.includes('#') || text.length < 15) continue;\n\n    // Must be same domain\n    const linkHost = parseHost(url);\n    if (!linkHost) continue;\n    if (!linkHost.includes(sourceHost) && !sourceHost.includes(linkHost)) continue;\n\n    // Must look like an article path (depth > 1)\n    const path = parsePath(url);\n    if (path.split('/').filter(Boolean).length < 2) continue;\n\n    if (seenUrls.has(url)) continue;\n    seenUrls.add(url);\n\n    // Extract date from link text\n    const dateMatch = text.match(dateRegex);\n    let published = null;\n    let title = text;\n\n    if (dateMatch) {\n      try {\n        const d = new Date(dateMatch[0].replace(',', ''));\n        if (!isNaN(d.getTime())) published = d.toISOString();\n      } catch(e) {}\n      // Remove date from title\n      const before = text.substring(0, text.indexOf(dateMatch[0])).trim();\n      const after = text.substring(text.indexOf(dateMatch[0]) + dateMatch[0].length).trim();\n      title = before.length > after.length ? before : (after || before);\n    }\n\n    // Fallback: find date near this URL in content\n    if (!published) {\n      const urlIdx = content.indexOf(url);\n      if (urlIdx >= 0) {\n        const start = Math.max(0, urlIdx - 200);\n        const nearby = content.substring(start, urlIdx + url.length + 200);\n        const contentDate = nearby.match(dateRegex);\n        if (contentDate) {\n          try {\n            const d = new Date(contentDate[0].replace(',', ''));\n            if (!isNaN(d.getTime())) published = d.toISOString();\n          } catch(e) {}\n        }\n      }\n    }\n\n    // Clean title\n    title = title.replace(/^(Research|Product|Company|Engineering|Policy|Science|Announcements|Solutions|Computer Vision|ML applications|Open Source|Natural language processing|Speech & Audio|Hardware|Featured|FEATURED|Latest News)\\s*/i, '').trim();\n    title = title.replace(/\\s*(Mistral AI|By\\s+.{0,50}$)/i, '').trim();\n    title = title.replace(/^#+\\s*/, '').trim();\n\n    if (!title || title.length < 10) continue;\n\n    // Filter by lookback (if we have a date)\n    if (published) {\n      const pubDate = new Date(published);\n      if (!isNaN(pubDate.getTime()) && pubDate < cutoff) continue;\n    }\n\n    articles.push({ title: title.substring(0, 200), url, published, summary: text.substring(0, 500) });\n  }\n  return articles;\n}\n\n\nconst allItems = [];\nconst errors = [];\nconst processed = [];\n\n// \u2550\u2550\u2550 Process RSS sources \u2550\u2550\u2550\nconst rssSources = sources.filter(s => s.access_method === 'RSS' && s.feed_url);\nfor (const src of rssSources) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET', url: src.feed_url,\n      headers: { 'Accept': 'application/rss+xml, application/atom+xml, text/xml',\n                 'User-Agent': 'T0-SourceIngestion/1.0' },\n      returnFullResponse: true, ignoreHttpStatusErrors: true, timeout: 15000,\n    });\n    const xml = typeof resp.body === 'string' ? resp.body : '';\n    if (!xml || resp.statusCode >= 400) {\n      errors.push({ source: src.name, error: 'HTTP ' + resp.statusCode });\n      continue;\n    }\n    const items = parseRss(xml);\n    const recent = items.filter(it => {\n      if (!it.date) return true;\n      const d = new Date(it.date);\n      return !isNaN(d.getTime()) && d >= cutoff;\n    }).slice(0, MAX_PER_SOURCE);\n\n    for (const it of recent) {\n      allItems.push({\n        title: it.title, url: it.link,\n        published: it.date || new Date().toISOString(),\n        summary: (it.desc || '').substring(0, 500),\n        full_text: it.desc || '',\n        source_name: src.name, source_page_id: src.page_id,\n        source_category_tags: src.category_tags,\n        origin: 'rss-ingestion',\n        origin_description: src.name + ' RSS',\n        author: it.author, language: src.language,\n      });\n    }\n    processed.push({ page_id: src.page_id, name: src.name, count: recent.length });\n  } catch (e) {\n    errors.push({ source: src.name, error: e.message || String(e) });\n  }\n}\n\n// \u2550\u2550\u2550 Process Jina sources \u2550\u2550\u2550\nconst jinaSources = sources.filter(s => s.access_method === 'Jina' && s.url);\nfor (const src of jinaSources) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://r.jina.ai/' + src.url,\n      headers: {\n        'Accept': 'application/json',\n        'X-With-Links': 'true',\n        'User-Agent': 'T0-SourceIngestion/1.0',\n      },\n      timeout: 30000,\n    });\n\n\n\n    const articles = parseJinaPage(resp, src.url);\n    for (const art of articles.slice(0, MAX_PER_SOURCE)) {\n      allItems.push({\n        title: art.title, url: art.url,\n        published: art.published || new Date().toISOString(),\n        summary: art.summary,\n        full_text: '',\n        source_name: src.name, source_page_id: src.page_id,\n        source_category_tags: src.category_tags,\n        origin: 'jina-ingestion',\n        origin_description: src.name + ' (Jina)',\n        author: '', language: src.language,\n      });\n    }\n    processed.push({ page_id: src.page_id, name: src.name, count: Math.min(articles.length, MAX_PER_SOURCE) });\n  } catch (e) {\n    errors.push({ source: src.name, error: e.message || String(e) });\n  }\n}\n\n\nreturn [{ json: {\n  items: allItems, item_count: allItems.length,\n  sources_processed: processed, source_count: processed.length,\n  errors, error_count: errors.length,\n}}];"
+      },
+      "id": "rss",
+      "name": "Fetch & Parse RSS",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1160,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.queryBody }}",
+        "options": {}
+      },
+      "id": "dedup-q",
+      "name": "Fetch Recent Notes",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1640,
+        150
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Dedup against existing Notes\nconst rssData = $('Fetch & Parse RSS').first().json;\nconst notesResp = $('Fetch Recent Notes').first().json;\nconst items = rssData.items || [];\nconst existingNotes = notesResp.results || [];\n\n// Build URL set from existing notes\nconst existingUrls = new Set();\nconst existingTitles = [];\nfor (const n of existingNotes) {\n  const url = n.properties?.URL?.url;\n  if (url) existingUrls.add(url.toLowerCase().replace(/\\/+$/, ''));\n  const t = (n.properties?.Name?.title || []).map(x => x.plain_text).join('');\n  if (t) existingTitles.push(t.toLowerCase().replace(/[^a-z0-9\\s]/g, '').substring(0, 80));\n}\n\nconst unique = [];\nconst seen = new Set();\nlet dupUrl = 0, dupTitle = 0;\n\nfor (const item of items) {\n  const normUrl = (item.url || '').toLowerCase().replace(/\\/+$/, '');\n  if (normUrl && (existingUrls.has(normUrl) || seen.has(normUrl))) { dupUrl++; continue; }\n\n  const normTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9\\s]/g, '').substring(0, 80);\n  if (normTitle.length > 10) {\n    const isDup = existingTitles.some(ex => {\n      if (ex.length < 10) return false;\n      let matches = 0;\n      const len = Math.min(normTitle.length, ex.length);\n      for (let i = 0; i < len; i++) if (normTitle[i] === ex[i]) matches++;\n      return (matches / Math.max(normTitle.length, ex.length)) > 0.85;\n    });\n    if (isDup) { dupTitle++; continue; }\n  }\n\n  seen.add(normUrl);\n  unique.push(item);\n}\n\nreturn [{ json: {\n  items: unique, item_count: unique.length,\n  dedup: { url: dupUrl, title: dupTitle, total_removed: dupUrl + dupTitle },\n  sources_processed: rssData.sources_processed,\n  errors: rssData.errors,\n}}];"
+      },
+      "id": "dedup",
+      "name": "Dedup Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1880,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://openrouter.ai/api/v1/chat/completions",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "openRouterApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "triage",
+      "name": "AI Triage",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2120,
+        150
+      ],
+      "credentials": {
+        "openRouterApi": {
+          "id": "zxXiCGlCYD4JGQDr",
+          "name": "Aarons OpenRouter account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const THRESHOLD = 3;\nconst mergeData = $input.first().json;\nconst items = mergeData.items || [];\nconst results = mergeData.triage_results || [];\n\nconst passing = [];\nfor (let i = 0; i < items.length; i++) {\n  const t = results.find(r => r.index === i) || {};\n  const score = t.relevance_score || 0;\n  if (score >= THRESHOLD) {\n    passing.push({\n      ...items[i], relevance_score: score,\n      triage_category_tags: t.category_tags || items[i].source_category_tags || [],\n      triage_ai_tags: t.ai_tags || [],\n      triage_summary: t.summary || items[i].summary,\n    });\n  }\n}\n\nreturn [{ json: {\n  items: passing, item_count: passing.length,\n  filtered: items.length - passing.length,\n  total_scored: results.length,\n  total_items: items.length,\n  sources_processed: mergeData.sources_processed,\n}}];"
+      },
+      "id": "gate",
+      "name": "Parse Triage & Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2600,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Compute 30-day lookback date for dedup query\nconst cutoff = new Date(Date.now() - 30 * 86400000).toISOString();\nconst queryBody = JSON.stringify({\n  filter: {\n    and: [\n      { property: \"URL\", url: { is_not_empty: true } },\n      { timestamp: \"created_time\", created_time: { after: cutoff } }\n    ]\n  },\n  page_size: 100\n});\nreturn [{ json: { queryBody, cutoff } }];"
+      },
+      "id": "prep-dedup",
+      "name": "Prepare Dedup Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1400,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Split items into batches of 25 for reliable triage scoring\nconst data = $input.first().json;\nconst items = data.items || [];\n\nif (items.length === 0) {\n  return [{ json: {\n    requestBody: JSON.stringify({\n      model: 'anthropic/claude-3.5-haiku',\n      messages: [{ role: 'user', content: 'No items. Return: {\"results\": []}' }],\n      max_tokens: 50,\n    }),\n    batchItems: [],\n    sources_processed: data.sources_processed || [],\n  }}];\n}\n\nconst BATCH_SIZE = 25;\nconst output = [];\n\nfor (let b = 0; b < Math.ceil(items.length / BATCH_SIZE); b++) {\n  const start = b * BATCH_SIZE;\n  const batch = items.slice(start, start + BATCH_SIZE);\n\n  const itemList = batch.map((it, i) =>\n    `[${start + i}] ${it.title} (${it.source_name}): ${(it.summary || '').substring(0, 200)}`\n  ).join('\\n');\n\n  const systemPrompt = `You are a content strategist for T-0, a German AI transformation agency.\n\nScore each item for relevance to T-0 (1-5):\n5 = Directly relevant (AI agents, MCP, enterprise AI, German market)\n4 = Clearly relevant, T-0 audience would value this\n3 = Moderately relevant, useful context\n2 = Tangentially related\n1 = Not relevant\n\nT-0 focus: AI agents/automation, MCP/tool-use, enterprise AI adoption, German/DACH market, developer tools, infrastructure.\n\nCategory Tags (pick 1-3): AI Models, Agents & Automation, Context Engineering, Dev Tools, Infrastructure, Security, Industry Moves, Regulation, Funding, Competitors, Strategy, Work & Society, German Market, MCP\n\nRespond with ONLY a JSON object. No markdown, no code blocks, no other text.\n{\"results\": [{\"index\": 0, \"relevance_score\": 4, \"category_tags\": [\"AI Models\"], \"ai_tags\": [\"Claude\"], \"summary\": \"2-3 sentence summary.\"}, ...]}\n\nYou MUST score every single item. Score ALL ${batch.length} items from index ${start} to ${start + batch.length - 1}.`;\n\n  const requestBody = JSON.stringify({\n    model: 'anthropic/claude-3.5-haiku',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: `Score these ${batch.length} items:\\n\\n${itemList}` },\n    ],\n    temperature: 0.1,\n    max_tokens: 4000,\n  });\n\n  output.push({ json: {\n    requestBody,\n    batchItems: batch,\n    batch_index: b,\n    batch_start: start,\n    sources_processed: b === 0 ? (data.sources_processed || []) : [],\n  }});\n}\n\nreturn output;"
+      },
+      "id": "prep-triage",
+      "name": "Prepare Triage",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nconst items = data.items || [];\nif (items.length === 0) return [];\n\nconst NOTES_DB = '2afc0fdf-942d-819a-b859-e69dcc48d67d';\nconst output = [];\n\nfor (const item of items) {\n  const props = {\n    'Name': { title: [{ text: { content: (item.title || 'Untitled').substring(0, 200) } }] },\n    'Status': { status: { name: 'To Be Processed' } },\n    'Origin': { multi_select: [{ name: 'rss-ingestion' }] },\n    'Origin Description': { rich_text: [{ text: { content: (item.origin_description || '').substring(0, 200) } }] },\n    'Summary': { rich_text: [{ text: { content: (item.triage_summary || item.summary || '').substring(0, 2000) } }] },\n    'AI-Tags': { multi_select: (item.triage_ai_tags || []).slice(0, 5).map(t => ({ name: t })) },\n  };\n\n  if (item.url) props['URL'] = { url: item.url };\n  if (item.published) {\n    try {\n      const dt = new Date(item.published);\n      if (!isNaN(dt.getTime())) props['Time'] = { date: { start: dt.toISOString().split('T')[0] } };\n    } catch(e) {}\n  }\n  if (item.full_text) {\n    props['Description'] = { rich_text: [{ text: { content: item.full_text.substring(0, 2000) } }] };\n  }\n  const firstCat = (item.triage_category_tags || [])[0];\n  if (firstCat) props['Category Tags'] = { select: { name: firstCat } };\n  if (item.source_page_id) props['Source'] = { relation: [{ id: item.source_page_id }] };\n\n  output.push({ json: {\n    requestBody: JSON.stringify({ parent: { database_id: NOTES_DB }, properties: props }),\n    title: item.title,\n    source_name: item.source_name,\n  }});\n}\nreturn output;"
+      },
+      "id": "prep-notes",
+      "name": "Prepare Note Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        50
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.notion.com/v1/pages",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "create-note",
+      "name": "Create Note",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        50
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('Parse Triage & Gate').first().json;\nconst sourcesProcessed = data.sources_processed || [];\nconst now = new Date().toISOString();\nconst seen = new Set();\nconst output = [];\n\nfor (const src of sourcesProcessed) {\n  if (seen.has(src.page_id)) continue;\n  seen.add(src.page_id);\n  output.push({ json: {\n    url: 'https://api.notion.com/v1/pages/' + src.page_id,\n    requestBody: JSON.stringify({\n      properties: { 'Last Checked': { date: { start: now } } }\n    }),\n    source_name: src.name,\n  }});\n}\n\nif (output.length === 0) return [];\nreturn output;"
+      },
+      "id": "prep-src-upd",
+      "name": "Prepare Source Updates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2840,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "notionApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.requestBody }}",
+        "options": {}
+      },
+      "id": "upd-source",
+      "name": "Update Source",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3080,
+        300
+      ],
+      "credentials": {
+        "notionApi": {
+          "id": "0xiiQaGDhyAvgSeB",
+          "name": "Aarons Notion account - T-0 Scope"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all batch triage responses and merge results\nconst triageResponses = $('AI Triage').all();\nconst batchOutputs = $('Prepare Triage').all();\n\n// Collect all items from all batches\nconst allItems = [];\nfor (const batch of batchOutputs) {\n  allItems.push(...(batch.json.batchItems || []));\n}\n\n// Collect sources_processed from first batch\nconst sourcesProcessed = batchOutputs[0]?.json.sources_processed || [];\n\n// Parse all triage results\nconst allResults = [];\nlet parseErrors = 0;\nfor (const resp of triageResponses) {\n  try {\n    const content = resp.json.choices?.[0]?.message?.content || '{}';\n    const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      const parsed = JSON.parse(jsonMatch[0]);\n      allResults.push(...(parsed.results || []));\n    }\n  } catch (e) {\n    parseErrors++;\n  }\n}\n\nreturn [{ json: {\n  items: allItems,\n  triage_results: allResults,\n  sources_processed: sourcesProcessed,\n  batches_processed: triageResponses.length,\n  items_scored: allResults.length,\n  parse_errors: parseErrors,\n}}];"
+      },
+      "id": "merge-triage",
+      "name": "Merge Triage Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2360,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://slack.com/api/conversations.history",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "channel",
+              "value": "C07RWPA1Z0B"
+            },
+            {
+              "name": "oldest",
+              "value": "={{ Math.floor((Date.now() - 7 * 86400000) / 1000) }}"
+            },
+            {
+              "name": "limit",
+              "value": "200"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "fetch-slack-history",
+      "name": "Fetch Slack History",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1040,
+        150
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "CVSFME2khBnyUCBi",
+          "name": "T-0 Slack Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://slack.com/api/conversations.replies",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "slackApi",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "channel",
+              "value": "C07RWPA1Z0B"
+            },
+            {
+              "name": "ts",
+              "value": "={{ $json.thread_ts }}"
+            },
+            {
+              "name": "limit",
+              "value": "50"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "id": "fetch-slack-replies",
+      "name": "Fetch Slack Replies",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1240,
+        300
+      ],
+      "credentials": {
+        "slackApi": {
+          "id": "CVSFME2khBnyUCBi",
+          "name": "T-0 Slack Bot"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const historyResp = $input.first().json;\nif (!historyResp.ok) {\n  return [{ json: { threads: [], error: historyResp.error || 'Slack API error' } }];\n}\n\nconst messages = historyResp.messages || [];\n// Qualifying threads: 2+ replies from 2+ people\nconst threadMessages = messages.filter(m => (m.reply_count || 0) >= 2 && (m.reply_users_count || 0) >= 2);\n\n// Also capture standalone link shares\nconst linkMessages = messages.filter(m =>\n  (m.reply_count || 0) < 2 &&\n  m.text && m.text.includes('<http')\n);\n\n// Output one item per thread that needs replies fetched\nconst threadItems = threadMessages.map(m => ({\n  json: { thread_ts: m.ts, parent_text: m.text || '', reply_count: m.reply_count, is_thread: true }\n}));\n\n// Also output link messages (don't need reply fetching)\nconst linkItems = linkMessages.map(m => ({\n  json: { thread_ts: m.ts, parent_text: m.text || '', reply_count: 0, is_thread: false }\n}));\n\n// Return all items (threads first, then links)\nconst all = [...threadItems, ...linkItems];\nif (!all.length) {\n  return [{ json: { thread_ts: '', parent_text: '', reply_count: 0, is_thread: false, no_items: true } }];\n}\nreturn all;"
+      },
+      "id": "identify-threads",
+      "name": "Identify Slack Threads",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect all identify outputs and their corresponding replies\nconst identifyItems = $('Identify Slack Threads').all();\nconst replyItems = $('Fetch Slack Replies').all();\n\n// Get Slack source info from Extract Sources\nconst sources = $('Extract Sources').first().json.sources || [];\nconst slackSource = sources.find(s => s.access_method === 'Slack API');\nif (!slackSource) {\n  return [{ json: { slackItems: [], count: 0 } }];\n}\n\nconst SLACK_CHANNEL_ID = 'C07RWPA1Z0B';\nconst MAX_PER_SOURCE = 20;\nconst items = [];\n\nfor (let i = 0; i < identifyItems.length; i++) {\n  const ident = identifyItems[i].json;\n  if (ident.no_items) continue;\n\n  let threadText = ident.parent_text || '';\n  let allLinks = [];\n\n  if (ident.is_thread && i < replyItems.length) {\n    // Use reply data if available\n    const replyResp = replyItems[i]?.json;\n    if (replyResp?.ok) {\n      const replies = replyResp.messages || [];\n      threadText = replies.map(r => r.text || '').join('\\n\\n');\n      for (const r of replies) {\n        const linkMatches = (r.text || '').match(/<(https?:[^>|]+)(?:\\|[^>]*)?>/g) || [];\n        for (const lm of linkMatches) {\n          const url = lm.match(/<(https?:[^>|]+)/)?.[1];\n          if (url) allLinks.push(url);\n        }\n      }\n    }\n  }\n\n  // Extract links from parent text if no reply links\n  if (!allLinks.length) {\n    const linkMatches = (ident.parent_text || '').match(/<(https?:[^>|]+)(?:\\|[^>]*)?>/g) || [];\n    for (const lm of linkMatches) {\n      const url = lm.match(/<(https?:[^>|]+)/)?.[1];\n      if (url) allLinks.push(url);\n    }\n  }\n\n  const cleanText = threadText.replace(/<[^>]+>/g, '').replace(/:[a-z_]+:/g, '').trim();\n  let title = cleanText.split('\\n')[0].trim().substring(0, 200);\n  if (!title || title.length < 5) title = 'Slack thread ' + new Date(parseFloat(ident.thread_ts) * 1000).toISOString().split('T')[0];\n\n  const threadUrl = allLinks[0] || `https://tminusnull.slack.com/archives/${SLACK_CHANNEL_ID}/p${ident.thread_ts.replace('.', '')}`;\n  const published = new Date(parseFloat(ident.thread_ts) * 1000).toISOString();\n  const originDesc = ident.is_thread ? slackSource.name + ' (Slack thread)' : slackSource.name + ' (Slack link)';\n\n  items.push({\n    title,\n    url: threadUrl,\n    published,\n    summary: cleanText.substring(0, 500),\n    full_text: cleanText.substring(0, 2000),\n    source_name: slackSource.name,\n    source_page_id: slackSource.page_id,\n    source_category_tags: slackSource.category_tags,\n    origin: 'slack-capture',\n    origin_description: originDesc,\n    author: '',\n    language: slackSource.language,\n  });\n}\n\nreturn [{ json: { slackItems: items.slice(0, MAX_PER_SOURCE), count: Math.min(items.length, MAX_PER_SOURCE), source: slackSource } }];"
+      },
+      "id": "normalize-slack",
+      "name": "Normalize Slack Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1440,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "append",
+        "options": {}
+      },
+      "id": "merge-branches",
+      "name": "Wait For Both Branches",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        1280,
+        150
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Read from both branches\n// Input 1: Fetch & Parse RSS (RSS + Jina items)\n// Input 2: Normalize Slack Items (Slack items)\nconst inputs = $input.all();\n\nlet rssData = null;\nlet slackData = null;\n\n// Find RSS and Slack data in inputs\nfor (const item of inputs) {\n  const j = item.json;\n  if (j.items && j.item_count !== undefined) {\n    rssData = j;\n  }\n  if (j.slackItems !== undefined) {\n    slackData = j;\n  }\n}\n\nlet allItems = [];\nlet allProcessed = [];\nlet allErrors = [];\n\nif (rssData) {\n  allItems.push(...(rssData.items || []));\n  allProcessed.push(...(rssData.sources_processed || []));\n  allErrors.push(...(rssData.errors || []));\n}\n\nif (slackData && slackData.slackItems) {\n  allItems.push(...slackData.slackItems);\n  if (slackData.source) {\n    allProcessed.push({ page_id: slackData.source.page_id, name: slackData.source.name, count: slackData.count });\n  }\n}\n\nreturn [{ json: {\n  items: allItems,\n  item_count: allItems.length,\n  sources_processed: allProcessed,\n  source_count: allProcessed.length,\n  errors: allErrors,\n  error_count: allErrors.length,\n} }];"
+      },
+      "id": "combine-items",
+      "name": "Combine All Items",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1480,
+        150
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Respond",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Parse Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Mode": {
+      "main": [
+        [
+          {
+            "node": "Fetch RSS Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch RSS Sources": {
+      "main": [
+        [
+          {
+            "node": "Extract Sources",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Sources": {
+      "main": [
+        [
+          {
+            "node": "Fetch & Parse RSS",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Slack History",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch & Parse RSS": {
+      "main": [
+        [
+          {
+            "node": "Wait For Both Branches",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Recent Notes": {
+      "main": [
+        [
+          {
+            "node": "Dedup Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dedup Items": {
+      "main": [
+        [
+          {
+            "node": "Prepare Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Triage": {
+      "main": [
+        [
+          {
+            "node": "Merge Triage Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Triage & Gate": {
+      "main": [
+        [
+          {
+            "node": "Prepare Note Items",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Prepare Source Updates",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Dedup Query": {
+      "main": [
+        [
+          {
+            "node": "Fetch Recent Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Triage": {
+      "main": [
+        [
+          {
+            "node": "AI Triage",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Note Items": {
+      "main": [
+        [
+          {
+            "node": "Create Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Source Updates": {
+      "main": [
+        [
+          {
+            "node": "Update Source",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge Triage Results": {
+      "main": [
+        [
+          {
+            "node": "Parse Triage & Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Slack History": {
+      "main": [
+        [
+          {
+            "node": "Identify Slack Threads",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Identify Slack Threads": {
+      "main": [
+        [
+          {
+            "node": "Fetch Slack Replies",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Slack Replies": {
+      "main": [
+        [
+          {
+            "node": "Normalize Slack Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Slack Items": {
+      "main": [
+        [
+          {
+            "node": "Wait For Both Branches",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Wait For Both Branches": {
+      "main": [
+        [
+          {
+            "node": "Combine All Items",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Combine All Items": {
+      "main": [
+        [
+          {
+            "node": "Prepare Dedup Query",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false,
+    "errorWorkflow": "de8FXOcXmNSCh6kd"
+  },
+  "staticData": {
+    "node:Schedule Trigger": {
+      "recurrenceRules": []
+    }
+  },
+  "meta": null,
+  "pinData": null,
+  "versionId": "c9ee35bf-e48e-4b9a-823d-2a417df85956",
+  "activeVersionId": "c9ee35bf-e48e-4b9a-823d-2a417df85956",
+  "versionCounter": 97,
+  "triggerCount": 2,
+  "shared": [
+    {
+      "updatedAt": "2026-03-27T14:14:01.996Z",
+      "createdAt": "2026-03-27T14:14:01.996Z",
+      "role": "workflow:owner",
+      "workflowId": "U9YvA64bwIMur9Df",
+      "projectId": "c21e32e5-2828-4748-8c02-64f3e520336a",
+      "project": {
+        "updatedAt": "2026-01-08T10:38:10.372Z",
+        "createdAt": "2026-01-08T10:38:10.372Z",
+        "id": "c21e32e5-2828-4748-8c02-64f3e520336a",
+        "name": "T-0 Admin Personal",
+        "type": "personal",
+        "icon": null,
+        "description": null,
+        "creatorId": "f098d803-bf77-453b-abac-36b3806f4345"
+      }
+    }
+  ],
+  "tags": [],
+  "activeVersion": {
+    "updatedAt": "2026-03-27T17:10:18.055Z",
+    "createdAt": "2026-03-27T17:10:18.055Z",
+    "versionId": "c9ee35bf-e48e-4b9a-823d-2a417df85956",
+    "workflowId": "U9YvA64bwIMur9Df",
+    "nodes": [
+      {
+        "parameters": {
+          "rule": {
+            "interval": [
+              {
+                "triggerAtHour": 8,
+                "triggerAtDay": 7
+              }
+            ]
+          }
+        },
+        "id": "sched",
+        "name": "Schedule Trigger",
+        "type": "n8n-nodes-base.scheduleTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          0,
+          0
+        ]
+      },
+      {
+        "parameters": {
+          "httpMethod": "POST",
+          "path": "t0-source-ingestion",
+          "responseMode": "responseNode",
+          "options": {}
+        },
+        "id": "webhook",
+        "name": "Webhook",
+        "type": "n8n-nodes-base.webhook",
+        "typeVersion": 2,
+        "position": [
+          0,
+          300
+        ],
+        "webhookId": "t0-source-ingestion"
+      },
+      {
+        "parameters": {
+          "respondWith": "text",
+          "responseBody": "={\"status\":\"accepted\",\"message\":\"Source ingestion triggered\"}",
+          "options": {
+            "responseHeaders": {
+              "entries": [
+                {
+                  "name": "Content-Type",
+                  "value": "application/json"
+                }
+              ]
+            }
+          }
+        },
+        "id": "respond",
+        "name": "Respond",
+        "type": "n8n-nodes-base.respondToWebhook",
+        "typeVersion": 1.1,
+        "position": [
+          240,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const item = $input.first();\nconst isWebhook = !!item?.json?.body;\nconst body = item?.json?.body || {};\nreturn [{ json: {\n  trigger: isWebhook ? 'webhook' : 'schedule',\n  mode: body.mode || 'rss',\n  source_id: body.source_id || null,\n  triggered_at: new Date().toISOString()\n}}];"
+        },
+        "id": "parse",
+        "name": "Parse Mode",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          440,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/databases/330c0fdf-942d-81b8-a839-fe9ea3c9ad15/query",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "{\"filter\": {\"and\": [{\"property\": \"Status\", \"status\": {\"equals\": \"Active\"}}, {\"or\": [{\"property\": \"Access Method\", \"select\": {\"equals\": \"RSS\"}}, {\"property\": \"Access Method\", \"select\": {\"equals\": \"Jina\"}}, {\"property\": \"Access Method\", \"select\": {\"equals\": \"Slack API\"}}]}]}, \"page_size\": 100}",
+          "options": {}
+        },
+        "id": "fetch-src",
+        "name": "Fetch RSS Sources",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          680,
+          150
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const results = $input.first().json.results || [];\nif (!results.length) return [{ json: { sources: [], count: 0 } }];\n\nconst sources = results.map(page => {\n  const p = page.properties || {};\n  const title = (p['Name']?.title || []).map(t => t.plain_text).join('');\n  const feedUrl = p['Feed URL']?.url;\n  const url = p['URL']?.url;\n  const lang = p['Language']?.select?.name || 'EN';\n  const cats = (p['Category Tags']?.multi_select || []).map(o => o.name);\n  const desc = (p['Description']?.rich_text || []).map(t => t.plain_text).join('');\n  const method = p['Access Method']?.select?.name || 'RSS';\n  return { page_id: page.id, name: title, feed_url: feedUrl, url, language: lang,\n           category_tags: cats, description: desc, access_method: method };\n}).filter(s => s.feed_url || s.access_method === 'Jina' || s.access_method === 'Slack API');\n\nreturn [{ json: { sources, count: sources.length } }];"
+        },
+        "id": "extract",
+        "name": "Extract Sources",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          920,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const { sources } = $input.first().json;\nconst LOOKBACK_DAYS = 7;\nconst MAX_PER_SOURCE = 20;\nconst cutoff = new Date(Date.now() - LOOKBACK_DAYS * 86400000);\n\nfunction clean(t) {\n  return (t||'').replace(/<[^>]*>/g,'').replace(/&amp;/g,'&').replace(/&lt;/g,'<')\n    .replace(/&gt;/g,'>').replace(/&quot;/g,'\"').replace(/&#0?39;/g,\"'\")\n    .replace(/&nbsp;/g,' ').replace(/\\s+/g,' ').trim();\n}\n\nfunction parseRss(xml) {\n  const items = [];\n  const rss = /<item[^>]*>([\\s\\S]*?)<\\/item>/gi;\n  let m;\n  while ((m = rss.exec(xml)) !== null) {\n    const x = m[1];\n    items.push({\n      title: clean((x.match(/<title[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/title>/i)||[])[1]||''),\n      link: ((x.match(/<link[^>]*>([\\s\\S]*?)<\\/link>/i)||[])[1]||'').trim(),\n      date: ((x.match(/<pubDate[^>]*>([\\s\\S]*?)<\\/pubDate>/i)||[])[1]||'').trim(),\n      desc: clean((x.match(/<description[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/description>/i)||[])[1]||''),\n      author: clean((x.match(/<(?:dc:creator|author)[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/(?:dc:creator|author)>/i)||[])[1]||''),\n    });\n  }\n  if (!items.length) {\n    const atom = /<entry[^>]*>([\\s\\S]*?)<\\/entry>/gi;\n    while ((m = atom.exec(xml)) !== null) {\n      const x = m[1];\n      items.push({\n        title: clean((x.match(/<title[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/title>/i)||[])[1]||''),\n        link: ((x.match(/<link[^>]*href=[\"']([^\"']*)[\"']/i)||[])[1]||'').trim(),\n        date: ((x.match(/<(?:published|updated)[^>]*>([\\s\\S]*?)<\\/(?:published|updated)>/i)||[])[1]||'').trim(),\n        desc: clean((x.match(/<(?:summary|content)[^>]*>(?:<!\\[CDATA\\[)?([\\s\\S]*?)(?:\\]\\]>)?<\\/(?:summary|content)>/i)||[])[1]||''),\n        author: clean((x.match(/<author[^>]*>[\\s\\S]*?<name[^>]*>([\\s\\S]*?)<\\/name>/i)||[])[1]||''),\n      });\n    }\n  }\n  return items;\n}\n\n// Parse articles from Jina reader JSON response (markdown with inline links)\n// NOTE: Uses regex for URL parsing because n8n task runner sandbox lacks URL constructor\nfunction parseHost(urlStr) {\n  const m = urlStr.match(/^https?:\\/\\/(?:www\\.)?([^\\/\\?#]+)/i);\n  return m ? m[1] : '';\n}\nfunction parsePath(urlStr) {\n  const m = urlStr.match(/^https?:\\/\\/[^\\/]+(\\/[^?#]*)/i);\n  return m ? m[1] : '/';\n}\n\nfunction parseJinaPage(resp, sourceUrl) {\n  const dateRegex = /(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\\s+\\d{1,2},?\\s+\\d{4}/i;\n  const data = resp.data || resp;\n  const content = data.content || (typeof data === 'string' ? data : '');\n  if (!content) return [];\n\n  const sourceHost = parseHost(sourceUrl);\n  if (!sourceHost) return [];\n\n  // Extract markdown links: [text](url)\n  const linkRegex = /\\[([^\\]]{10,})\\]\\((https?:\\/\\/[^)]+)\\)/g;\n  const articles = [];\n  const seenUrls = new Set();\n  let match;\n\n  while ((match = linkRegex.exec(content)) !== null) {\n    const text = match[1].trim();\n    const url = match[2].trim();\n\n    if (url.includes('#') || text.length < 15) continue;\n\n    // Must be same domain\n    const linkHost = parseHost(url);\n    if (!linkHost) continue;\n    if (!linkHost.includes(sourceHost) && !sourceHost.includes(linkHost)) continue;\n\n    // Must look like an article path (depth > 1)\n    const path = parsePath(url);\n    if (path.split('/').filter(Boolean).length < 2) continue;\n\n    if (seenUrls.has(url)) continue;\n    seenUrls.add(url);\n\n    // Extract date from link text\n    const dateMatch = text.match(dateRegex);\n    let published = null;\n    let title = text;\n\n    if (dateMatch) {\n      try {\n        const d = new Date(dateMatch[0].replace(',', ''));\n        if (!isNaN(d.getTime())) published = d.toISOString();\n      } catch(e) {}\n      // Remove date from title\n      const before = text.substring(0, text.indexOf(dateMatch[0])).trim();\n      const after = text.substring(text.indexOf(dateMatch[0]) + dateMatch[0].length).trim();\n      title = before.length > after.length ? before : (after || before);\n    }\n\n    // Fallback: find date near this URL in content\n    if (!published) {\n      const urlIdx = content.indexOf(url);\n      if (urlIdx >= 0) {\n        const start = Math.max(0, urlIdx - 200);\n        const nearby = content.substring(start, urlIdx + url.length + 200);\n        const contentDate = nearby.match(dateRegex);\n        if (contentDate) {\n          try {\n            const d = new Date(contentDate[0].replace(',', ''));\n            if (!isNaN(d.getTime())) published = d.toISOString();\n          } catch(e) {}\n        }\n      }\n    }\n\n    // Clean title\n    title = title.replace(/^(Research|Product|Company|Engineering|Policy|Science|Announcements|Solutions|Computer Vision|ML applications|Open Source|Natural language processing|Speech & Audio|Hardware|Featured|FEATURED|Latest News)\\s*/i, '').trim();\n    title = title.replace(/\\s*(Mistral AI|By\\s+.{0,50}$)/i, '').trim();\n    title = title.replace(/^#+\\s*/, '').trim();\n\n    if (!title || title.length < 10) continue;\n\n    // Filter by lookback (if we have a date)\n    if (published) {\n      const pubDate = new Date(published);\n      if (!isNaN(pubDate.getTime()) && pubDate < cutoff) continue;\n    }\n\n    articles.push({ title: title.substring(0, 200), url, published, summary: text.substring(0, 500) });\n  }\n  return articles;\n}\n\n\nconst allItems = [];\nconst errors = [];\nconst processed = [];\n\n// \u2550\u2550\u2550 Process RSS sources \u2550\u2550\u2550\nconst rssSources = sources.filter(s => s.access_method === 'RSS' && s.feed_url);\nfor (const src of rssSources) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET', url: src.feed_url,\n      headers: { 'Accept': 'application/rss+xml, application/atom+xml, text/xml',\n                 'User-Agent': 'T0-SourceIngestion/1.0' },\n      returnFullResponse: true, ignoreHttpStatusErrors: true, timeout: 15000,\n    });\n    const xml = typeof resp.body === 'string' ? resp.body : '';\n    if (!xml || resp.statusCode >= 400) {\n      errors.push({ source: src.name, error: 'HTTP ' + resp.statusCode });\n      continue;\n    }\n    const items = parseRss(xml);\n    const recent = items.filter(it => {\n      if (!it.date) return true;\n      const d = new Date(it.date);\n      return !isNaN(d.getTime()) && d >= cutoff;\n    }).slice(0, MAX_PER_SOURCE);\n\n    for (const it of recent) {\n      allItems.push({\n        title: it.title, url: it.link,\n        published: it.date || new Date().toISOString(),\n        summary: (it.desc || '').substring(0, 500),\n        full_text: it.desc || '',\n        source_name: src.name, source_page_id: src.page_id,\n        source_category_tags: src.category_tags,\n        origin: 'rss-ingestion',\n        origin_description: src.name + ' RSS',\n        author: it.author, language: src.language,\n      });\n    }\n    processed.push({ page_id: src.page_id, name: src.name, count: recent.length });\n  } catch (e) {\n    errors.push({ source: src.name, error: e.message || String(e) });\n  }\n}\n\n// \u2550\u2550\u2550 Process Jina sources \u2550\u2550\u2550\nconst jinaSources = sources.filter(s => s.access_method === 'Jina' && s.url);\nfor (const src of jinaSources) {\n  try {\n    const resp = await this.helpers.httpRequest({\n      method: 'GET',\n      url: 'https://r.jina.ai/' + src.url,\n      headers: {\n        'Accept': 'application/json',\n        'X-With-Links': 'true',\n        'User-Agent': 'T0-SourceIngestion/1.0',\n      },\n      timeout: 30000,\n    });\n\n\n\n    const articles = parseJinaPage(resp, src.url);\n    for (const art of articles.slice(0, MAX_PER_SOURCE)) {\n      allItems.push({\n        title: art.title, url: art.url,\n        published: art.published || new Date().toISOString(),\n        summary: art.summary,\n        full_text: '',\n        source_name: src.name, source_page_id: src.page_id,\n        source_category_tags: src.category_tags,\n        origin: 'jina-ingestion',\n        origin_description: src.name + ' (Jina)',\n        author: '', language: src.language,\n      });\n    }\n    processed.push({ page_id: src.page_id, name: src.name, count: Math.min(articles.length, MAX_PER_SOURCE) });\n  } catch (e) {\n    errors.push({ source: src.name, error: e.message || String(e) });\n  }\n}\n\n\nreturn [{ json: {\n  items: allItems, item_count: allItems.length,\n  sources_processed: processed, source_count: processed.length,\n  errors, error_count: errors.length,\n}}];"
+        },
+        "id": "rss",
+        "name": "Fetch & Parse RSS",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1160,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/databases/2afc0fdf-942d-819a-b859-e69dcc48d67d/query",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.queryBody }}",
+          "options": {}
+        },
+        "id": "dedup-q",
+        "name": "Fetch Recent Notes",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1640,
+          150
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Dedup against existing Notes\nconst rssData = $('Fetch & Parse RSS').first().json;\nconst notesResp = $('Fetch Recent Notes').first().json;\nconst items = rssData.items || [];\nconst existingNotes = notesResp.results || [];\n\n// Build URL set from existing notes\nconst existingUrls = new Set();\nconst existingTitles = [];\nfor (const n of existingNotes) {\n  const url = n.properties?.URL?.url;\n  if (url) existingUrls.add(url.toLowerCase().replace(/\\/+$/, ''));\n  const t = (n.properties?.Name?.title || []).map(x => x.plain_text).join('');\n  if (t) existingTitles.push(t.toLowerCase().replace(/[^a-z0-9\\s]/g, '').substring(0, 80));\n}\n\nconst unique = [];\nconst seen = new Set();\nlet dupUrl = 0, dupTitle = 0;\n\nfor (const item of items) {\n  const normUrl = (item.url || '').toLowerCase().replace(/\\/+$/, '');\n  if (normUrl && (existingUrls.has(normUrl) || seen.has(normUrl))) { dupUrl++; continue; }\n\n  const normTitle = (item.title || '').toLowerCase().replace(/[^a-z0-9\\s]/g, '').substring(0, 80);\n  if (normTitle.length > 10) {\n    const isDup = existingTitles.some(ex => {\n      if (ex.length < 10) return false;\n      let matches = 0;\n      const len = Math.min(normTitle.length, ex.length);\n      for (let i = 0; i < len; i++) if (normTitle[i] === ex[i]) matches++;\n      return (matches / Math.max(normTitle.length, ex.length)) > 0.85;\n    });\n    if (isDup) { dupTitle++; continue; }\n  }\n\n  seen.add(normUrl);\n  unique.push(item);\n}\n\nreturn [{ json: {\n  items: unique, item_count: unique.length,\n  dedup: { url: dupUrl, title: dupTitle, total_removed: dupUrl + dupTitle },\n  sources_processed: rssData.sources_processed,\n  errors: rssData.errors,\n}}];"
+        },
+        "id": "dedup",
+        "name": "Dedup Items",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1880,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://openrouter.ai/api/v1/chat/completions",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "openRouterApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.requestBody }}",
+          "options": {}
+        },
+        "id": "triage",
+        "name": "AI Triage",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          2120,
+          150
+        ],
+        "credentials": {
+          "openRouterApi": {
+            "id": "zxXiCGlCYD4JGQDr",
+            "name": "Aarons OpenRouter account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const THRESHOLD = 3;\nconst mergeData = $input.first().json;\nconst items = mergeData.items || [];\nconst results = mergeData.triage_results || [];\n\nconst passing = [];\nfor (let i = 0; i < items.length; i++) {\n  const t = results.find(r => r.index === i) || {};\n  const score = t.relevance_score || 0;\n  if (score >= THRESHOLD) {\n    passing.push({\n      ...items[i], relevance_score: score,\n      triage_category_tags: t.category_tags || items[i].source_category_tags || [],\n      triage_ai_tags: t.ai_tags || [],\n      triage_summary: t.summary || items[i].summary,\n    });\n  }\n}\n\nreturn [{ json: {\n  items: passing, item_count: passing.length,\n  filtered: items.length - passing.length,\n  total_scored: results.length,\n  total_items: items.length,\n  sources_processed: mergeData.sources_processed,\n}}];"
+        },
+        "id": "gate",
+        "name": "Parse Triage & Gate",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2600,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Compute 30-day lookback date for dedup query\nconst cutoff = new Date(Date.now() - 30 * 86400000).toISOString();\nconst queryBody = JSON.stringify({\n  filter: {\n    and: [\n      { property: \"URL\", url: { is_not_empty: true } },\n      { timestamp: \"created_time\", created_time: { after: cutoff } }\n    ]\n  },\n  page_size: 100\n});\nreturn [{ json: { queryBody, cutoff } }];"
+        },
+        "id": "prep-dedup",
+        "name": "Prepare Dedup Query",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1400,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Split items into batches of 25 for reliable triage scoring\nconst data = $input.first().json;\nconst items = data.items || [];\n\nif (items.length === 0) {\n  return [{ json: {\n    requestBody: JSON.stringify({\n      model: 'anthropic/claude-3.5-haiku',\n      messages: [{ role: 'user', content: 'No items. Return: {\"results\": []}' }],\n      max_tokens: 50,\n    }),\n    batchItems: [],\n    sources_processed: data.sources_processed || [],\n  }}];\n}\n\nconst BATCH_SIZE = 25;\nconst output = [];\n\nfor (let b = 0; b < Math.ceil(items.length / BATCH_SIZE); b++) {\n  const start = b * BATCH_SIZE;\n  const batch = items.slice(start, start + BATCH_SIZE);\n\n  const itemList = batch.map((it, i) =>\n    `[${start + i}] ${it.title} (${it.source_name}): ${(it.summary || '').substring(0, 200)}`\n  ).join('\\n');\n\n  const systemPrompt = `You are a content strategist for T-0, a German AI transformation agency.\n\nScore each item for relevance to T-0 (1-5):\n5 = Directly relevant (AI agents, MCP, enterprise AI, German market)\n4 = Clearly relevant, T-0 audience would value this\n3 = Moderately relevant, useful context\n2 = Tangentially related\n1 = Not relevant\n\nT-0 focus: AI agents/automation, MCP/tool-use, enterprise AI adoption, German/DACH market, developer tools, infrastructure.\n\nCategory Tags (pick 1-3): AI Models, Agents & Automation, Context Engineering, Dev Tools, Infrastructure, Security, Industry Moves, Regulation, Funding, Competitors, Strategy, Work & Society, German Market, MCP\n\nRespond with ONLY a JSON object. No markdown, no code blocks, no other text.\n{\"results\": [{\"index\": 0, \"relevance_score\": 4, \"category_tags\": [\"AI Models\"], \"ai_tags\": [\"Claude\"], \"summary\": \"2-3 sentence summary.\"}, ...]}\n\nYou MUST score every single item. Score ALL ${batch.length} items from index ${start} to ${start + batch.length - 1}.`;\n\n  const requestBody = JSON.stringify({\n    model: 'anthropic/claude-3.5-haiku',\n    messages: [\n      { role: 'system', content: systemPrompt },\n      { role: 'user', content: `Score these ${batch.length} items:\\n\\n${itemList}` },\n    ],\n    temperature: 0.1,\n    max_tokens: 4000,\n  });\n\n  output.push({ json: {\n    requestBody,\n    batchItems: batch,\n    batch_index: b,\n    batch_start: start,\n    sources_processed: b === 0 ? (data.sources_processed || []) : [],\n  }});\n}\n\nreturn output;"
+        },
+        "id": "prep-triage",
+        "name": "Prepare Triage",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2000,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $input.first().json;\nconst items = data.items || [];\nif (items.length === 0) return [];\n\nconst NOTES_DB = '2afc0fdf-942d-819a-b859-e69dcc48d67d';\nconst output = [];\n\nfor (const item of items) {\n  const props = {\n    'Name': { title: [{ text: { content: (item.title || 'Untitled').substring(0, 200) } }] },\n    'Status': { status: { name: 'To Be Processed' } },\n    'Origin': { multi_select: [{ name: 'rss-ingestion' }] },\n    'Origin Description': { rich_text: [{ text: { content: (item.origin_description || '').substring(0, 200) } }] },\n    'Summary': { rich_text: [{ text: { content: (item.triage_summary || item.summary || '').substring(0, 2000) } }] },\n    'AI-Tags': { multi_select: (item.triage_ai_tags || []).slice(0, 5).map(t => ({ name: t })) },\n  };\n\n  if (item.url) props['URL'] = { url: item.url };\n  if (item.published) {\n    try {\n      const dt = new Date(item.published);\n      if (!isNaN(dt.getTime())) props['Time'] = { date: { start: dt.toISOString().split('T')[0] } };\n    } catch(e) {}\n  }\n  if (item.full_text) {\n    props['Description'] = { rich_text: [{ text: { content: item.full_text.substring(0, 2000) } }] };\n  }\n  const firstCat = (item.triage_category_tags || [])[0];\n  if (firstCat) props['Category Tags'] = { select: { name: firstCat } };\n  if (item.source_page_id) props['Source'] = { relation: [{ id: item.source_page_id }] };\n\n  output.push({ json: {\n    requestBody: JSON.stringify({ parent: { database_id: NOTES_DB }, properties: props }),\n    title: item.title,\n    source_name: item.source_name,\n  }});\n}\nreturn output;"
+        },
+        "id": "prep-notes",
+        "name": "Prepare Note Items",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2840,
+          50
+        ]
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.notion.com/v1/pages",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.requestBody }}",
+          "options": {}
+        },
+        "id": "create-note",
+        "name": "Create Note",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3080,
+          50
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const data = $('Parse Triage & Gate').first().json;\nconst sourcesProcessed = data.sources_processed || [];\nconst now = new Date().toISOString();\nconst seen = new Set();\nconst output = [];\n\nfor (const src of sourcesProcessed) {\n  if (seen.has(src.page_id)) continue;\n  seen.add(src.page_id);\n  output.push({ json: {\n    url: 'https://api.notion.com/v1/pages/' + src.page_id,\n    requestBody: JSON.stringify({\n      properties: { 'Last Checked': { date: { start: now } } }\n    }),\n    source_name: src.name,\n  }});\n}\n\nif (output.length === 0) return [];\nreturn output;"
+        },
+        "id": "prep-src-upd",
+        "name": "Prepare Source Updates",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2840,
+          300
+        ]
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "={{ $json.url }}",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "notionApi",
+          "sendBody": true,
+          "specifyBody": "json",
+          "jsonBody": "={{ $json.requestBody }}",
+          "options": {}
+        },
+        "id": "upd-source",
+        "name": "Update Source",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          3080,
+          300
+        ],
+        "credentials": {
+          "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
+            "name": "Aarons Notion account - T-0 Scope"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Collect all batch triage responses and merge results\nconst triageResponses = $('AI Triage').all();\nconst batchOutputs = $('Prepare Triage').all();\n\n// Collect all items from all batches\nconst allItems = [];\nfor (const batch of batchOutputs) {\n  allItems.push(...(batch.json.batchItems || []));\n}\n\n// Collect sources_processed from first batch\nconst sourcesProcessed = batchOutputs[0]?.json.sources_processed || [];\n\n// Parse all triage results\nconst allResults = [];\nlet parseErrors = 0;\nfor (const resp of triageResponses) {\n  try {\n    const content = resp.json.choices?.[0]?.message?.content || '{}';\n    const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n    if (jsonMatch) {\n      const parsed = JSON.parse(jsonMatch[0]);\n      allResults.push(...(parsed.results || []));\n    }\n  } catch (e) {\n    parseErrors++;\n  }\n}\n\nreturn [{ json: {\n  items: allItems,\n  triage_results: allResults,\n  sources_processed: sourcesProcessed,\n  batches_processed: triageResponses.length,\n  items_scored: allResults.length,\n  parse_errors: parseErrors,\n}}];"
+        },
+        "id": "merge-triage",
+        "name": "Merge Triage Results",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2360,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "https://slack.com/api/conversations.history",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "slackApi",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "channel",
+                "value": "C07RWPA1Z0B"
+              },
+              {
+                "name": "oldest",
+                "value": "={{ Math.floor((Date.now() - 7 * 86400000) / 1000) }}"
+              },
+              {
+                "name": "limit",
+                "value": "200"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 15000
+          }
+        },
+        "id": "fetch-slack-history",
+        "name": "Fetch Slack History",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1040,
+          150
+        ],
+        "credentials": {
+          "slackApi": {
+            "id": "CVSFME2khBnyUCBi",
+            "name": "T-0 Slack Bot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "GET",
+          "url": "https://slack.com/api/conversations.replies",
+          "authentication": "predefinedCredentialType",
+          "nodeCredentialType": "slackApi",
+          "sendQuery": true,
+          "queryParameters": {
+            "parameters": [
+              {
+                "name": "channel",
+                "value": "C07RWPA1Z0B"
+              },
+              {
+                "name": "ts",
+                "value": "={{ $json.thread_ts }}"
+              },
+              {
+                "name": "limit",
+                "value": "50"
+              }
+            ]
+          },
+          "options": {
+            "timeout": 10000
+          }
+        },
+        "id": "fetch-slack-replies",
+        "name": "Fetch Slack Replies",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1240,
+          300
+        ],
+        "credentials": {
+          "slackApi": {
+            "id": "CVSFME2khBnyUCBi",
+            "name": "T-0 Slack Bot"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const historyResp = $input.first().json;\nif (!historyResp.ok) {\n  return [{ json: { threads: [], error: historyResp.error || 'Slack API error' } }];\n}\n\nconst messages = historyResp.messages || [];\n// Qualifying threads: 2+ replies from 2+ people\nconst threadMessages = messages.filter(m => (m.reply_count || 0) >= 2 && (m.reply_users_count || 0) >= 2);\n\n// Also capture standalone link shares\nconst linkMessages = messages.filter(m =>\n  (m.reply_count || 0) < 2 &&\n  m.text && m.text.includes('<http')\n);\n\n// Output one item per thread that needs replies fetched\nconst threadItems = threadMessages.map(m => ({\n  json: { thread_ts: m.ts, parent_text: m.text || '', reply_count: m.reply_count, is_thread: true }\n}));\n\n// Also output link messages (don't need reply fetching)\nconst linkItems = linkMessages.map(m => ({\n  json: { thread_ts: m.ts, parent_text: m.text || '', reply_count: 0, is_thread: false }\n}));\n\n// Return all items (threads first, then links)\nconst all = [...threadItems, ...linkItems];\nif (!all.length) {\n  return [{ json: { thread_ts: '', parent_text: '', reply_count: 0, is_thread: false, no_items: true } }];\n}\nreturn all;"
+        },
+        "id": "identify-threads",
+        "name": "Identify Slack Threads",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1240,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Collect all identify outputs and their corresponding replies\nconst identifyItems = $('Identify Slack Threads').all();\nconst replyItems = $('Fetch Slack Replies').all();\n\n// Get Slack source info from Extract Sources\nconst sources = $('Extract Sources').first().json.sources || [];\nconst slackSource = sources.find(s => s.access_method === 'Slack API');\nif (!slackSource) {\n  return [{ json: { slackItems: [], count: 0 } }];\n}\n\nconst SLACK_CHANNEL_ID = 'C07RWPA1Z0B';\nconst MAX_PER_SOURCE = 20;\nconst items = [];\n\nfor (let i = 0; i < identifyItems.length; i++) {\n  const ident = identifyItems[i].json;\n  if (ident.no_items) continue;\n\n  let threadText = ident.parent_text || '';\n  let allLinks = [];\n\n  if (ident.is_thread && i < replyItems.length) {\n    // Use reply data if available\n    const replyResp = replyItems[i]?.json;\n    if (replyResp?.ok) {\n      const replies = replyResp.messages || [];\n      threadText = replies.map(r => r.text || '').join('\\n\\n');\n      for (const r of replies) {\n        const linkMatches = (r.text || '').match(/<(https?:[^>|]+)(?:\\|[^>]*)?>/g) || [];\n        for (const lm of linkMatches) {\n          const url = lm.match(/<(https?:[^>|]+)/)?.[1];\n          if (url) allLinks.push(url);\n        }\n      }\n    }\n  }\n\n  // Extract links from parent text if no reply links\n  if (!allLinks.length) {\n    const linkMatches = (ident.parent_text || '').match(/<(https?:[^>|]+)(?:\\|[^>]*)?>/g) || [];\n    for (const lm of linkMatches) {\n      const url = lm.match(/<(https?:[^>|]+)/)?.[1];\n      if (url) allLinks.push(url);\n    }\n  }\n\n  const cleanText = threadText.replace(/<[^>]+>/g, '').replace(/:[a-z_]+:/g, '').trim();\n  let title = cleanText.split('\\n')[0].trim().substring(0, 200);\n  if (!title || title.length < 5) title = 'Slack thread ' + new Date(parseFloat(ident.thread_ts) * 1000).toISOString().split('T')[0];\n\n  const threadUrl = allLinks[0] || `https://tminusnull.slack.com/archives/${SLACK_CHANNEL_ID}/p${ident.thread_ts.replace('.', '')}`;\n  const published = new Date(parseFloat(ident.thread_ts) * 1000).toISOString();\n  const originDesc = ident.is_thread ? slackSource.name + ' (Slack thread)' : slackSource.name + ' (Slack link)';\n\n  items.push({\n    title,\n    url: threadUrl,\n    published,\n    summary: cleanText.substring(0, 500),\n    full_text: cleanText.substring(0, 2000),\n    source_name: slackSource.name,\n    source_page_id: slackSource.page_id,\n    source_category_tags: slackSource.category_tags,\n    origin: 'slack-capture',\n    origin_description: originDesc,\n    author: '',\n    language: slackSource.language,\n  });\n}\n\nreturn [{ json: { slackItems: items.slice(0, MAX_PER_SOURCE), count: Math.min(items.length, MAX_PER_SOURCE), source: slackSource } }];"
+        },
+        "id": "normalize-slack",
+        "name": "Normalize Slack Items",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1440,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "mode": "append",
+          "options": {}
+        },
+        "id": "merge-branches",
+        "name": "Wait For Both Branches",
+        "type": "n8n-nodes-base.merge",
+        "typeVersion": 3,
+        "position": [
+          1280,
+          150
+        ]
+      },
+      {
+        "parameters": {
+          "jsCode": "// Read from both branches\n// Input 1: Fetch & Parse RSS (RSS + Jina items)\n// Input 2: Normalize Slack Items (Slack items)\nconst inputs = $input.all();\n\nlet rssData = null;\nlet slackData = null;\n\n// Find RSS and Slack data in inputs\nfor (const item of inputs) {\n  const j = item.json;\n  if (j.items && j.item_count !== undefined) {\n    rssData = j;\n  }\n  if (j.slackItems !== undefined) {\n    slackData = j;\n  }\n}\n\nlet allItems = [];\nlet allProcessed = [];\nlet allErrors = [];\n\nif (rssData) {\n  allItems.push(...(rssData.items || []));\n  allProcessed.push(...(rssData.sources_processed || []));\n  allErrors.push(...(rssData.errors || []));\n}\n\nif (slackData && slackData.slackItems) {\n  allItems.push(...slackData.slackItems);\n  if (slackData.source) {\n    allProcessed.push({ page_id: slackData.source.page_id, name: slackData.source.name, count: slackData.count });\n  }\n}\n\nreturn [{ json: {\n  items: allItems,\n  item_count: allItems.length,\n  sources_processed: allProcessed,\n  source_count: allProcessed.length,\n  errors: allErrors,\n  error_count: allErrors.length,\n} }];"
+        },
+        "id": "combine-items",
+        "name": "Combine All Items",
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1480,
+          150
+        ]
+      }
+    ],
+    "connections": {
+      "Webhook": {
+        "main": [
+          [
+            {
+              "node": "Respond",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Parse Mode",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Schedule Trigger": {
+        "main": [
+          [
+            {
+              "node": "Parse Mode",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Mode": {
+        "main": [
+          [
+            {
+              "node": "Fetch RSS Sources",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch RSS Sources": {
+        "main": [
+          [
+            {
+              "node": "Extract Sources",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract Sources": {
+        "main": [
+          [
+            {
+              "node": "Fetch & Parse RSS",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Fetch Slack History",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch & Parse RSS": {
+        "main": [
+          [
+            {
+              "node": "Wait For Both Branches",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Recent Notes": {
+        "main": [
+          [
+            {
+              "node": "Dedup Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Dedup Items": {
+        "main": [
+          [
+            {
+              "node": "Prepare Triage",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "AI Triage": {
+        "main": [
+          [
+            {
+              "node": "Merge Triage Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Parse Triage & Gate": {
+        "main": [
+          [
+            {
+              "node": "Prepare Note Items",
+              "type": "main",
+              "index": 0
+            },
+            {
+              "node": "Prepare Source Updates",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Dedup Query": {
+        "main": [
+          [
+            {
+              "node": "Fetch Recent Notes",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Triage": {
+        "main": [
+          [
+            {
+              "node": "AI Triage",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Note Items": {
+        "main": [
+          [
+            {
+              "node": "Create Note",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Prepare Source Updates": {
+        "main": [
+          [
+            {
+              "node": "Update Source",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Merge Triage Results": {
+        "main": [
+          [
+            {
+              "node": "Parse Triage & Gate",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Slack History": {
+        "main": [
+          [
+            {
+              "node": "Identify Slack Threads",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Identify Slack Threads": {
+        "main": [
+          [
+            {
+              "node": "Fetch Slack Replies",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Fetch Slack Replies": {
+        "main": [
+          [
+            {
+              "node": "Normalize Slack Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Normalize Slack Items": {
+        "main": [
+          [
+            {
+              "node": "Wait For Both Branches",
+              "type": "main",
+              "index": 1
+            }
+          ]
+        ]
+      },
+      "Wait For Both Branches": {
+        "main": [
+          [
+            {
+              "node": "Combine All Items",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Combine All Items": {
+        "main": [
+          [
+            {
+              "node": "Prepare Dedup Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "T-0 Admin",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-03-27T17:10:18.326Z",
+        "id": 484,
+        "workflowId": "U9YvA64bwIMur9Df",
+        "versionId": "c9ee35bf-e48e-4b9a-823d-2a417df85956",
+        "event": "activated",
+        "userId": "f098d803-bf77-453b-abac-36b3806f4345"
+      }
+    ]
+  }
+}
