@@ -846,7 +846,7 @@
         700
       ],
       "parameters": {
-        "jsCode": "\n// Fetch ALL page blocks with pagination (handles >100 blocks)\nconst https = require('https');\n\nfunction notionGet(path) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: 'GET',\n      headers: {\n        'Authorization': 'Bearer REDACTED',\n        'Notion-Version': '2022-06-28'\n      }\n    };\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        else resolve(JSON.parse(data));\n      });\n    });\n    req.on('error', reject);\n    req.end();\n  });\n}\n\nconst pageId = $('C: Fetch Full Page').first().json.id;\nlet allResults = [];\nlet startCursor = null;\nlet hasMore = true;\n\nwhile (hasMore) {\n  const path = 'blocks/' + pageId + '/children?page_size=100' + (startCursor ? '&start_cursor=' + startCursor : '');\n  const resp = await notionGet(path);\n  allResults = allResults.concat(resp.results || []);\n  hasMore = resp.has_more || false;\n  startCursor = resp.next_cursor || null;\n}\n\nreturn [{json: { results: allResults, totalBlocks: allResults.length }}];\n"
+        "jsCode": "\n// Fetch ALL page blocks with pagination (handles >100 blocks)\nconst https = require('https');\n\nfunction notionGet(path) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: 'GET',\n      headers: {\n        'Authorization': 'Bearer ntn_REDACTED',\n        'Notion-Version': '2022-06-28'\n      }\n    };\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        else resolve(JSON.parse(data));\n      });\n    });\n    req.on('error', reject);\n    req.end();\n  });\n}\n\nconst pageId = $('C: Fetch Full Page').first().json.id;\nlet allResults = [];\nlet startCursor = null;\nlet hasMore = true;\n\nwhile (hasMore) {\n  const path = 'blocks/' + pageId + '/children?page_size=100' + (startCursor ? '&start_cursor=' + startCursor : '');\n  const resp = await notionGet(path);\n  allResults = allResults.concat(resp.results || []);\n  hasMore = resp.has_more || false;\n  startCursor = resp.next_cursor || null;\n}\n\nreturn [{json: { results: allResults, totalBlocks: allResults.length }}];\n"
       }
     },
     {
@@ -863,17 +863,18 @@
       }
     },
     {
+      "parameters": {
+        "jsCode": "\nconst input = $input.first().json;\nconst parsePayload = $('Parse Payload').first().json;\n\n// Duplicate guard: check if Ghost ID is already set\nconst existingGhostId = parsePayload.rawProperties?.['Ghost ID']?.rich_text?.[0]?.plain_text || '';\nif (existingGhostId) {\n  throw new Error('Ghost post already exists (ID: ' + existingGhostId + '). Delete existing post first to re-publish.');\n}\n\n// Build post object\nconst post = {\n  title: input.title,\n  html: input.html,\n  status: 'draft',\n  tags: input.tags,\n  excerpt: (input.pitch || '').substring(0, 300) || undefined,\n  feature_image: input.imageUrl || undefined,\n  meta_title: (input.title || '').substring(0, 60) || undefined,\n  meta_description: (input.pitch || '').substring(0, 155) || undefined,\n  newsletter: { slug: 'default-newsletter' }\n};\n\n// If due date is set, schedule it\nif (input.dueDatePlanned) {\n  const dueDate = new Date(input.dueDatePlanned + 'T12:00:00Z');\n  const month = dueDate.getMonth();\n  const isCEST = month >= 2 && month <= 9;\n  const offset = isCEST ? '+02:00' : '+01:00';\n  const scheduleDate = new Date(input.dueDatePlanned + 'T09:00:00' + offset);\n  if (scheduleDate > new Date()) {\n    post.status = 'scheduled';\n    post.published_at = scheduleDate.toISOString();\n  }\n}\n\nreturn [{json: {\n  ghostPayload: { posts: [post] },\n  pageId: input.pageId,\n  title: input.title\n}}];\n",
+        "options": {}
+      },
       "id": "be62d53f-751e-43b2-a22f-2781fc378909",
-      "name": "C: Create Ghost Post",
+      "name": "C: Build Ghost Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
         1500,
         700
-      ],
-      "parameters": {
-        "jsCode": "\n// Generate Ghost Admin JWT and create post via API\nconst crypto = require('crypto');\nconst https = require('https');\nconst input = $input.first().json;\nconst parsePayload = $('Parse Payload').first().json;\n\n// Duplicate guard: check if Ghost ID is already set\nconst existingGhostId = parsePayload.rawProperties?.['Ghost ID']?.rich_text?.[0]?.plain_text || '';\nif (existingGhostId) {\n  throw new Error('Ghost post already exists (ID: ' + existingGhostId + '). Delete existing post first to re-publish.');\n}\n\nconst ghostKeyId = 'REDACTED';\nconst ghostSecret = 'REDACTED';\n\n// Generate JWT\nconst header = Buffer.from(JSON.stringify({alg: 'HS256', typ: 'JWT', kid: ghostKeyId})).toString('base64url');\nconst now = Math.floor(Date.now() / 1000);\nconst payload = Buffer.from(JSON.stringify({iat: now, exp: now + 300, aud: '/admin/'})).toString('base64url');\nconst signature = crypto.createHmac('sha256', Buffer.from(ghostSecret, 'hex'))\n  .update(header + '.' + payload).digest('base64url');\nconst token = header + '.' + payload + '.' + signature;\n\n// Build post object\nconst post = {\n  title: input.title,\n  html: input.html,\n  status: 'draft',\n  tags: input.tags,\n  excerpt: (input.pitch || '').substring(0, 300) || undefined,\n  feature_image: input.imageUrl || undefined,\n  // SEO fields\n  meta_title: (input.title || '').substring(0, 60) || undefined,\n  meta_description: (input.pitch || '').substring(0, 155) || undefined,\n  // Newsletter association\n  newsletter: { slug: 'default-newsletter' }\n};\n\n// If due date is set, schedule it (use dynamic timezone offset)\nif (input.dueDatePlanned) {\n  // Germany: CET (+01:00) Oct-Mar, CEST (+02:00) Mar-Oct\n  const dueDate = new Date(input.dueDatePlanned + 'T12:00:00Z'); // noon UTC as base\n  const jan = new Date(dueDate.getFullYear(), 0, 1);\n  const jul = new Date(dueDate.getFullYear(), 6, 1);\n  // Check if date is in CEST (simplistic: April-October)\n  const month = dueDate.getMonth(); // 0-indexed\n  const isCEST = month >= 2 && month <= 9; // March to October\n  const offset = isCEST ? '+02:00' : '+01:00';\n  const scheduleDate = new Date(input.dueDatePlanned + 'T09:00:00' + offset);\n  if (scheduleDate > new Date()) {\n    post.status = 'scheduled';\n    post.published_at = scheduleDate.toISOString();\n  }\n}\n\nconst body = JSON.stringify({ posts: [post] });\n\n// Make HTTPS request\nconst result = await new Promise((resolve, reject) => {\n  const req = https.request({\n    hostname: 't-0.co',\n    path: '/ghost/api/admin/posts/?source=html',\n    method: 'POST',\n    headers: {\n      'Authorization': 'Ghost ' + token,\n      'Content-Type': 'application/json',\n      'Content-Length': Buffer.byteLength(body)\n    }\n  }, (res) => {\n    let data = '';\n    res.on('data', (chunk) => data += chunk);\n    res.on('end', () => {\n      if (res.statusCode >= 400) {\n        reject(new Error('Ghost API error ' + res.statusCode + ': ' + data.substring(0, 500)));\n      } else {\n        resolve(JSON.parse(data));\n      }\n    });\n  });\n  req.on('error', reject);\n  req.write(body);\n  req.end();\n});\n\nconst createdPost = result.posts[0];\n\nreturn [{json: {\n  pageId: input.pageId,\n  ghostId: createdPost.id,\n  ghostUrl: createdPost.url,\n  ghostStatus: createdPost.status,\n  ghostSlug: createdPost.slug,\n  title: input.title\n}}];\n"
-      }
+      ]
     },
     {
       "id": "5d97b22d-3488-49ec-8a3d-a4ab4c4aa327",
@@ -935,7 +936,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ parent: { page_id: $(\"C: Create Ghost Post\").first().json.pageId }, rich_text: [{ text: { content: \"\u2705 Published to Ghost (\" + $(\"C: Create Ghost Post\").first().json.ghostStatus + \"): \" + $(\"C: Create Ghost Post\").first().json.ghostUrl } }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ parent: { page_id: $(\"C: Parse Ghost Response\").first().json.pageId }, rich_text: [{ text: { content: \"\u2705 Published to Ghost (\" + $(\"C: Parse Ghost Response\").first().json.ghostStatus + \"): \" + $(\"C: Parse Ghost Response\").first().json.ghostUrl } }] }) }}",
         "options": {}
       },
       "credentials": {
@@ -987,7 +988,7 @@
         1100
       ],
       "parameters": {
-        "jsCode": "\n// Fetch ALL page blocks with pagination (handles >100 blocks)\nconst https = require('https');\n\nfunction notionGet(path) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: 'GET',\n      headers: {\n        'Authorization': 'Bearer REDACTED',\n        'Notion-Version': '2022-06-28'\n      }\n    };\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        else resolve(JSON.parse(data));\n      });\n    });\n    req.on('error', reject);\n    req.end();\n  });\n}\n\n// Get pageId from upstream \u2014 B: Fetch Feedback returns comments with parent.page_id\nconst feedbackResp = $('B: Fetch Feedback').first().json;\nconst pageId = feedbackResp.results?.[0]?.parent?.page_id || $('Parse Payload').first().json.pageId;\n\nlet allResults = [];\nlet startCursor = null;\nlet hasMore = true;\n\nwhile (hasMore) {\n  const path = 'blocks/' + pageId.replace(/-/g, '') + '/children?page_size=100' + (startCursor ? '&start_cursor=' + startCursor : '');\n  const resp = await notionGet(path);\n  allResults = allResults.concat(resp.results || []);\n  hasMore = resp.has_more || false;\n  startCursor = resp.next_cursor || null;\n}\n\nreturn [{json: { results: allResults, totalBlocks: allResults.length }}];\n"
+        "jsCode": "\n// Fetch ALL page blocks with pagination (handles >100 blocks)\nconst https = require('https');\n\nfunction notionGet(path) {\n  return new Promise((resolve, reject) => {\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: 'GET',\n      headers: {\n        'Authorization': 'Bearer ntn_REDACTED',\n        'Notion-Version': '2022-06-28'\n      }\n    };\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        else resolve(JSON.parse(data));\n      });\n    });\n    req.on('error', reject);\n    req.end();\n  });\n}\n\n// Get pageId from upstream \u2014 B: Fetch Feedback returns comments with parent.page_id\nconst feedbackResp = $('B: Fetch Feedback').first().json;\nconst pageId = feedbackResp.results?.[0]?.parent?.page_id || $('Parse Payload').first().json.pageId;\n\nlet allResults = [];\nlet startCursor = null;\nlet hasMore = true;\n\nwhile (hasMore) {\n  const path = 'blocks/' + pageId.replace(/-/g, '') + '/children?page_size=100' + (startCursor ? '&start_cursor=' + startCursor : '');\n  const resp = await notionGet(path);\n  allResults = allResults.concat(resp.results || []);\n  hasMore = resp.has_more || false;\n  startCursor = resp.next_cursor || null;\n}\n\nreturn [{json: { results: allResults, totalBlocks: allResults.length }}];\n"
       }
     },
     {
@@ -1058,7 +1059,7 @@
         1100
       ],
       "parameters": {
-        "jsCode": "\nconst https = require('https');\n\nfunction notionRequest(method, path, body) {\n  return new Promise((resolve, reject) => {\n    const bodyStr = body ? JSON.stringify(body) : '';\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: method,\n      headers: {\n        'Authorization': 'Bearer REDACTED',\n        'Notion-Version': '2022-06-28',\n        'Content-Type': 'application/json'\n      }\n    };\n    if (bodyStr) opts.headers['Content-Length'] = Buffer.byteLength(bodyStr);\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) {\n          reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        } else {\n          resolve(data ? JSON.parse(data) : {});\n        }\n      });\n    });\n    req.on('error', reject);\n    if (bodyStr) req.write(bodyStr);\n    req.end();\n  });\n}\n\nconst input = $input.first().json;\nconst pageId = input.pageId;\nconst blockIds = input.blockIds || [];\n\n// Delete each block\nfor (const blockId of blockIds) {\n  try {\n    await notionRequest('DELETE', 'blocks/' + blockId);\n  } catch (e) {\n    // Continue on individual block delete failures\n  }\n}\n\n// Create archive toggle with previous draft\nconst archiveBlocks = [\n  {\n    type: 'toggle',\n    toggle: {\n      rich_text: [{ text: { content: '\ud83d\udce6 Previous Version (pre-revision)' } }],\n      children: [\n        {\n          type: 'paragraph',\n          paragraph: {\n            rich_text: [{ text: { content: (input.currentDraft || '').substring(0, 2000) } }]\n          }\n        }\n      ]\n    }\n  },\n  {\n    type: 'divider',\n    divider: {}\n  }\n];\n\nawait notionRequest('PATCH', 'blocks/' + pageId + '/children', { children: archiveBlocks });\n\nreturn [{json: {\n  pageId: input.pageId,\n  name: input.name,\n  pitch: input.pitch,\n  systemPrompt: input.systemPrompt,\n  feedbackText: input.feedbackText,\n  brandContext: input.brandContext\n}}];\n",
+        "jsCode": "\nconst https = require('https');\n\nfunction notionRequest(method, path, body) {\n  return new Promise((resolve, reject) => {\n    const bodyStr = body ? JSON.stringify(body) : '';\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: method,\n      headers: {\n        'Authorization': 'Bearer ntn_REDACTED',\n        'Notion-Version': '2022-06-28',\n        'Content-Type': 'application/json'\n      }\n    };\n    if (bodyStr) opts.headers['Content-Length'] = Buffer.byteLength(bodyStr);\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) {\n          reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        } else {\n          resolve(data ? JSON.parse(data) : {});\n        }\n      });\n    });\n    req.on('error', reject);\n    if (bodyStr) req.write(bodyStr);\n    req.end();\n  });\n}\n\nconst input = $input.first().json;\nconst pageId = input.pageId;\nconst blockIds = input.blockIds || [];\n\n// Delete each block\nfor (const blockId of blockIds) {\n  try {\n    await notionRequest('DELETE', 'blocks/' + blockId);\n  } catch (e) {\n    // Continue on individual block delete failures\n  }\n}\n\n// Create archive toggle with previous draft\nconst archiveBlocks = [\n  {\n    type: 'toggle',\n    toggle: {\n      rich_text: [{ text: { content: '\ud83d\udce6 Previous Version (pre-revision)' } }],\n      children: [\n        {\n          type: 'paragraph',\n          paragraph: {\n            rich_text: [{ text: { content: (input.currentDraft || '').substring(0, 2000) } }]\n          }\n        }\n      ]\n    }\n  },\n  {\n    type: 'divider',\n    divider: {}\n  }\n];\n\nawait notionRequest('PATCH', 'blocks/' + pageId + '/children', { children: archiveBlocks });\n\nreturn [{json: {\n  pageId: input.pageId,\n  name: input.name,\n  pitch: input.pitch,\n  systemPrompt: input.systemPrompt,\n  feedbackText: input.feedbackText,\n  brandContext: input.brandContext\n}}];\n",
         "mode": "runOnceForAllItems"
       },
       "credentials": {
@@ -1119,7 +1120,7 @@
         1100
       ],
       "parameters": {
-        "jsCode": "\nconst https = require('https');\n\nfunction notionRequest(method, path, body) {\n  return new Promise((resolve, reject) => {\n    const bodyStr = body ? JSON.stringify(body) : '';\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: method,\n      headers: {\n        'Authorization': 'Bearer REDACTED',\n        'Notion-Version': '2022-06-28',\n        'Content-Type': 'application/json'\n      }\n    };\n    if (bodyStr) opts.headers['Content-Length'] = Buffer.byteLength(bodyStr);\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) {\n          reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        } else {\n          resolve(data ? JSON.parse(data) : {});\n        }\n      });\n    });\n    req.on('error', reject);\n    if (bodyStr) req.write(bodyStr);\n    req.end();\n  });\n}\n\n// Parse inline markdown formatting to Notion rich_text\nfunction parseInlineFormatting(text) {\n  const segments = [];\n  // Regex for **bold**, *italic*, `code`, [text](url)\n  const pattern = /(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|`(.+?)`|\\[(.+?)\\]\\((.+?)\\))/g;\n  let lastIndex = 0;\n  let match;\n  while ((match = pattern.exec(text)) !== null) {\n    // Add plain text before match\n    if (match.index > lastIndex) {\n      segments.push({ text: { content: text.slice(lastIndex, match.index) } });\n    }\n    if (match[2]) { // **bold**\n      segments.push({ text: { content: match[2] }, annotations: { bold: true } });\n    } else if (match[3]) { // *italic*\n      segments.push({ text: { content: match[3] }, annotations: { italic: true } });\n    } else if (match[4]) { // `code`\n      segments.push({ text: { content: match[4] }, annotations: { code: true } });\n    } else if (match[5] && match[6]) { // [text](url)\n      segments.push({ text: { content: match[5], link: { url: match[6] } } });\n    }\n    lastIndex = match.index + match[0].length;\n  }\n  // Remaining text\n  if (lastIndex < text.length) {\n    segments.push({ text: { content: text.slice(lastIndex) } });\n  }\n  if (segments.length === 0) {\n    segments.push({ text: { content: text } });\n  }\n  return segments;\n}\n\nconst input = $('B: Delete Old Blocks').first().json;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst pageId = input.pageId;\n\n// Convert markdown to Notion blocks with inline formatting\nconst lines = draftText.split('\\n');\nconst blocks = [];\nlet inCodeFence = false;\nlet codeLines = [];\nlet codeLang = '';\n\nfor (let line of lines) {\n  // Handle code fences\n  if (line.trim().startsWith('```')) {\n    if (inCodeFence) {\n      // Close code fence\n      blocks.push({\n        type: 'code',\n        code: {\n          rich_text: [{ text: { content: codeLines.join('\\n') } }],\n          language: codeLang || 'plain text'\n        }\n      });\n      inCodeFence = false;\n      codeLines = [];\n      codeLang = '';\n      continue;\n    } else {\n      inCodeFence = true;\n      codeLang = line.trim().slice(3).trim();\n      continue;\n    }\n  }\n  if (inCodeFence) {\n    codeLines.push(line);\n    continue;\n  }\n\n  line = line.trim();\n  if (!line) continue;\n  if (line.startsWith('<!--') && line.includes('META')) continue;\n\n  if (line.startsWith('# ')) {\n    blocks.push({ type: 'heading_1', heading_1: { rich_text: parseInlineFormatting(line.slice(2).trim()) } });\n  } else if (line.startsWith('## ')) {\n    blocks.push({ type: 'heading_2', heading_2: { rich_text: parseInlineFormatting(line.slice(3).trim()) } });\n  } else if (line.startsWith('### ')) {\n    blocks.push({ type: 'heading_3', heading_3: { rich_text: parseInlineFormatting(line.slice(4).trim()) } });\n  } else if (line.startsWith('- ') || line.startsWith('* ')) {\n    blocks.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: parseInlineFormatting(line.slice(2).trim()) } });\n  } else if (line.match(/^\\d+\\.\\s/)) {\n    blocks.push({ type: 'numbered_list_item', numbered_list_item: { rich_text: parseInlineFormatting(line.replace(/^\\d+\\.\\s/, '').trim()) } });\n  } else if (line.startsWith('> ')) {\n    blocks.push({ type: 'quote', quote: { rich_text: parseInlineFormatting(line.slice(2).trim()) } });\n  } else if (line === '---') {\n    blocks.push({ type: 'divider', divider: {} });\n  } else {\n    blocks.push({ type: 'paragraph', paragraph: { rich_text: parseInlineFormatting(line) } });\n  }\n}\n\n// Close unclosed code fence\nif (inCodeFence && codeLines.length > 0) {\n  blocks.push({\n    type: 'code',\n    code: {\n      rich_text: [{ text: { content: codeLines.join('\\n') } }],\n      language: codeLang || 'plain text'\n    }\n  });\n}\n\n// Sanitize: split any rich_text content > 2000 chars (Notion limit)\nfor (const block of blocks) {\n  const btype = block.type;\n  if (block[btype] && block[btype].rich_text) {\n    const sanitized = [];\n    for (const rt of block[btype].rich_text) {\n      const content = rt.text ? rt.text.content || '' : '';\n      if (content.length <= 2000) {\n        sanitized.push(rt);\n      } else {\n        for (let ci = 0; ci < content.length; ci += 2000) {\n          const chunk = { text: { content: content.slice(ci, ci + 2000) } };\n          if (rt.text && rt.text.link) chunk.text.link = rt.text.link;\n          if (rt.annotations) chunk.annotations = Object.assign({}, rt.annotations);\n          sanitized.push(chunk);\n        }\n      }\n    }\n    block[btype].rich_text = sanitized;\n  }\n}\n\n// Batch write blocks (max 100 per request)\nconst batchSize = 100;\nfor (let i = 0; i < blocks.length; i += batchSize) {\n  const batch = blocks.slice(i, i + batchSize);\n  await notionRequest('PATCH', 'blocks/' + pageId + '/children', { children: batch });\n}\n\n// Do NOT set status here \u2014 evaluation will set it\n// Post revision comment\nawait notionRequest('POST', 'comments', {\n  parent: { page_id: pageId },\n  rich_text: [{ text: { content: '\ud83d\udd04 Revision complete. ' + blocks.length + ' blocks written. Running re-evaluation...' } }]\n});\n\nreturn [{json: {\n  pageId: pageId,\n  blocksWritten: blocks.length,\n  cleanDraft: draftText,\n  contentType: $('Parse Payload').first().json.contentType || '',\n  status: 'revised'\n}}];\n",
+        "jsCode": "\nconst https = require('https');\n\nfunction notionRequest(method, path, body) {\n  return new Promise((resolve, reject) => {\n    const bodyStr = body ? JSON.stringify(body) : '';\n    const opts = {\n      hostname: 'api.notion.com',\n      path: '/v1/' + path,\n      method: method,\n      headers: {\n        'Authorization': 'Bearer ntn_REDACTED',\n        'Notion-Version': '2022-06-28',\n        'Content-Type': 'application/json'\n      }\n    };\n    if (bodyStr) opts.headers['Content-Length'] = Buffer.byteLength(bodyStr);\n    const req = https.request(opts, (res) => {\n      let data = '';\n      res.on('data', (c) => data += c);\n      res.on('end', () => {\n        if (res.statusCode >= 400) {\n          reject(new Error('Notion ' + res.statusCode + ': ' + data.substring(0, 300)));\n        } else {\n          resolve(data ? JSON.parse(data) : {});\n        }\n      });\n    });\n    req.on('error', reject);\n    if (bodyStr) req.write(bodyStr);\n    req.end();\n  });\n}\n\n// Parse inline markdown formatting to Notion rich_text\nfunction parseInlineFormatting(text) {\n  const segments = [];\n  // Regex for **bold**, *italic*, `code`, [text](url)\n  const pattern = /(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|`(.+?)`|\\[(.+?)\\]\\((.+?)\\))/g;\n  let lastIndex = 0;\n  let match;\n  while ((match = pattern.exec(text)) !== null) {\n    // Add plain text before match\n    if (match.index > lastIndex) {\n      segments.push({ text: { content: text.slice(lastIndex, match.index) } });\n    }\n    if (match[2]) { // **bold**\n      segments.push({ text: { content: match[2] }, annotations: { bold: true } });\n    } else if (match[3]) { // *italic*\n      segments.push({ text: { content: match[3] }, annotations: { italic: true } });\n    } else if (match[4]) { // `code`\n      segments.push({ text: { content: match[4] }, annotations: { code: true } });\n    } else if (match[5] && match[6]) { // [text](url)\n      segments.push({ text: { content: match[5], link: { url: match[6] } } });\n    }\n    lastIndex = match.index + match[0].length;\n  }\n  // Remaining text\n  if (lastIndex < text.length) {\n    segments.push({ text: { content: text.slice(lastIndex) } });\n  }\n  if (segments.length === 0) {\n    segments.push({ text: { content: text } });\n  }\n  return segments;\n}\n\nconst input = $('B: Delete Old Blocks').first().json;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst pageId = input.pageId;\n\n// Convert markdown to Notion blocks with inline formatting\nconst lines = draftText.split('\\n');\nconst blocks = [];\nlet inCodeFence = false;\nlet codeLines = [];\nlet codeLang = '';\n\nfor (let line of lines) {\n  // Handle code fences\n  if (line.trim().startsWith('```')) {\n    if (inCodeFence) {\n      // Close code fence\n      blocks.push({\n        type: 'code',\n        code: {\n          rich_text: [{ text: { content: codeLines.join('\\n') } }],\n          language: codeLang || 'plain text'\n        }\n      });\n      inCodeFence = false;\n      codeLines = [];\n      codeLang = '';\n      continue;\n    } else {\n      inCodeFence = true;\n      codeLang = line.trim().slice(3).trim();\n      continue;\n    }\n  }\n  if (inCodeFence) {\n    codeLines.push(line);\n    continue;\n  }\n\n  line = line.trim();\n  if (!line) continue;\n  if (line.startsWith('<!--') && line.includes('META')) continue;\n\n  if (line.startsWith('# ')) {\n    blocks.push({ type: 'heading_1', heading_1: { rich_text: parseInlineFormatting(line.slice(2).trim()) } });\n  } else if (line.startsWith('## ')) {\n    blocks.push({ type: 'heading_2', heading_2: { rich_text: parseInlineFormatting(line.slice(3).trim()) } });\n  } else if (line.startsWith('### ')) {\n    blocks.push({ type: 'heading_3', heading_3: { rich_text: parseInlineFormatting(line.slice(4).trim()) } });\n  } else if (line.startsWith('- ') || line.startsWith('* ')) {\n    blocks.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: parseInlineFormatting(line.slice(2).trim()) } });\n  } else if (line.match(/^\\d+\\.\\s/)) {\n    blocks.push({ type: 'numbered_list_item', numbered_list_item: { rich_text: parseInlineFormatting(line.replace(/^\\d+\\.\\s/, '').trim()) } });\n  } else if (line.startsWith('> ')) {\n    blocks.push({ type: 'quote', quote: { rich_text: parseInlineFormatting(line.slice(2).trim()) } });\n  } else if (line === '---') {\n    blocks.push({ type: 'divider', divider: {} });\n  } else {\n    blocks.push({ type: 'paragraph', paragraph: { rich_text: parseInlineFormatting(line) } });\n  }\n}\n\n// Close unclosed code fence\nif (inCodeFence && codeLines.length > 0) {\n  blocks.push({\n    type: 'code',\n    code: {\n      rich_text: [{ text: { content: codeLines.join('\\n') } }],\n      language: codeLang || 'plain text'\n    }\n  });\n}\n\n// Sanitize: split any rich_text content > 2000 chars (Notion limit)\nfor (const block of blocks) {\n  const btype = block.type;\n  if (block[btype] && block[btype].rich_text) {\n    const sanitized = [];\n    for (const rt of block[btype].rich_text) {\n      const content = rt.text ? rt.text.content || '' : '';\n      if (content.length <= 2000) {\n        sanitized.push(rt);\n      } else {\n        for (let ci = 0; ci < content.length; ci += 2000) {\n          const chunk = { text: { content: content.slice(ci, ci + 2000) } };\n          if (rt.text && rt.text.link) chunk.text.link = rt.text.link;\n          if (rt.annotations) chunk.annotations = Object.assign({}, rt.annotations);\n          sanitized.push(chunk);\n        }\n      }\n    }\n    block[btype].rich_text = sanitized;\n  }\n}\n\n// Batch write blocks (max 100 per request)\nconst batchSize = 100;\nfor (let i = 0; i < blocks.length; i += batchSize) {\n  const batch = blocks.slice(i, i + batchSize);\n  await notionRequest('PATCH', 'blocks/' + pageId + '/children', { children: batch });\n}\n\n// Do NOT set status here \u2014 evaluation will set it\n// Post revision comment\nawait notionRequest('POST', 'comments', {\n  parent: { page_id: pageId },\n  rich_text: [{ text: { content: '\ud83d\udd04 Revision complete. ' + blocks.length + ' blocks written. Running re-evaluation...' } }]\n});\n\nreturn [{json: {\n  pageId: pageId,\n  blocksWritten: blocks.length,\n  cleanDraft: draftText,\n  contentType: $('Parse Payload').first().json.contentType || '',\n  status: 'revised'\n}}];\n",
         "mode": "runOnceForAllItems"
       },
       "credentials": {
@@ -1171,6 +1172,46 @@
           }
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://t-0.co/ghost/api/admin/posts/?source=html",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "ghostAdminApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify($json.ghostPayload) }}",
+        "options": {}
+      },
+      "id": "ghost-post-http",
+      "name": "C: Create Ghost Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1800,
+        700
+      ],
+      "credentials": {
+        "ghostAdminApi": {
+          "id": "rrFwzLh7XYdnnN8E",
+          "name": "Ghost Admin API \u2014 T-0 (t-0.co)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "\nconst httpResp = $input.first().json;\nconst buildPayload = $('C: Build Ghost Payload').first().json;\n\n// Ghost API returns { posts: [{ id, url, slug, status, ... }] }\nconst createdPost = httpResp.posts?.[0];\nif (!createdPost) {\n  throw new Error('Ghost API did not return a post: ' + JSON.stringify(httpResp).substring(0, 500));\n}\n\nreturn [{json: {\n  pageId: buildPayload.pageId,\n  ghostId: createdPost.id,\n  ghostUrl: createdPost.url,\n  ghostStatus: createdPost.status,\n  ghostSlug: createdPost.slug,\n  title: buildPayload.title\n}}];\n",
+        "options": {}
+      },
+      "id": "ghost-parse-resp",
+      "name": "C: Parse Ghost Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2100,
+        700
+      ]
     }
   ],
   "connections": {
@@ -1592,18 +1633,7 @@
       "main": [
         [
           {
-            "node": "C: Create Ghost Post",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "C: Create Ghost Post": {
-      "main": [
-        [
-          {
-            "node": "C: Update Notion Published",
+            "node": "C: Build Ghost Payload",
             "type": "main",
             "index": 0
           }
@@ -1736,6 +1766,39 @@
         [
           {
             "node": "Format Error Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C: Build Ghost Payload": {
+      "main": [
+        [
+          {
+            "node": "C: Create Ghost Post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C: Create Ghost Post": {
+      "main": [
+        [
+          {
+            "node": "C: Parse Ghost Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "C: Parse Ghost Response": {
+      "main": [
+        [
+          {
+            "node": "C: Update Notion Published",
             "type": "main",
             "index": 0
           }
