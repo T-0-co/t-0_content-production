@@ -1,8 +1,6 @@
 {
-  "id": "dJlw6US8gj6Do4Wf",
   "name": "T-0 Content Pipeline",
   "description": null,
-  "active": true,
   "isArchived": false,
   "nodes": [
     {
@@ -19,8 +17,7 @@
         400
       ],
       "name": "Webhook Trigger",
-      "webhookId": "t0-content-pipeline",
-      "id": "a7529939-061e-4f7f-ae76-268812bf9aa3"
+      "webhookId": "t0-content-pipeline"
     },
     {
       "parameters": {
@@ -34,8 +31,7 @@
         220,
         600
       ],
-      "name": "Respond OK",
-      "id": "61e44dc9-a382-48ef-9594-07e6cb30ac55"
+      "name": "Respond OK"
     },
     {
       "parameters": {
@@ -47,8 +43,7 @@
         220,
         400
       ],
-      "name": "Parse Payload",
-      "id": "bd041f48-e688-4895-bd4a-b813e93b11c5"
+      "name": "Parse Payload"
     },
     {
       "parameters": {
@@ -160,8 +155,7 @@
         520,
         140
       ],
-      "name": "Route by Status",
-      "id": "d19f7173-3bc6-4a65-ac9a-b00bff647a99"
+      "name": "Route by Status"
     },
     {
       "parameters": {
@@ -191,8 +185,7 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "4274cfcf-df9d-4eed-9e71-3749cd46837e"
+      }
     },
     {
       "parameters": {
@@ -222,8 +215,7 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "259e509e-430f-431f-8593-08dfbd35a4ea"
+      }
     },
     {
       "parameters": {
@@ -253,12 +245,11 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "d98f75e9-e5dd-4461-aeef-ae3b303ca6b9"
+      }
     },
     {
       "parameters": {
-        "jsCode": "\n// Convert Notion blocks to markdown and merge brand context\nfunction blocksToMd(blocks) {\n  if (!blocks || !Array.isArray(blocks)) return \"\";\n  return blocks.map(b => {\n    const type = b.type;\n    if (type === \"divider\") return \"---\";\n    const rt = b[type]?.rich_text || [];\n    const text = rt.map(r => {\n      let t = r.plain_text || \"\";\n      if (r.annotations?.bold) t = `**${t}**`;\n      if (r.annotations?.italic) t = `*${t}*`;\n      if (r.annotations?.code) t = \"`\" + t + \"`\";\n      if (r.href) t = `[${t}](${r.href})`;\n      return t;\n    }).join(\"\");\n    if (type === \"heading_1\") return `# ${text}`;\n    if (type === \"heading_2\") return `## ${text}`;\n    if (type === \"heading_3\") return `### ${text}`;\n    if (type === \"bulleted_list_item\") return `- ${text}`;\n    if (type === \"numbered_list_item\") return `1. ${text}`;\n    if (type === \"quote\") return `> ${text}`;\n    if (type === \"callout\") return `> ${text}`;\n    if (type === \"code\") return \"```\\n\" + text + \"\\n```\";\n    return text;\n  }).filter(l => l.trim() !== \"\").join(\"\\n\");\n}\n\n// Items arrive appended from Merge node \u2014 access by index\nconst items = $input.all();\nconst writingGuide = blocksToMd(items[0]?.json?.results || []);\nconst contentGuide = blocksToMd(items[1]?.json?.results || []);\nconst styleAnalysis = blocksToMd(items[2]?.json?.results || []);\nconst pageData = $('Parse Payload').first().json;\n\nreturn [{\n  json: {\n    ...pageData,\n    brandContext: {\n      writingGuide: writingGuide.substring(0, 8000),\n      contentGuide: contentGuide.substring(0, 8000),\n      styleAnalysis: styleAnalysis.substring(0, 4000)\n    }\n  }\n}];\n"
+        "jsCode": "\n// Convert Notion blocks to markdown and merge brand context\nfunction blocksToMd(blocks) {\n  if (!blocks || !Array.isArray(blocks)) return \"\";\n  return blocks.map(b => {\n    const type = b.type;\n    if (type === \"divider\") return \"---\";\n    const rt = b[type]?.rich_text || [];\n    const text = rt.map(r => {\n      let t = r.plain_text || \"\";\n      if (r.annotations?.bold) t = `**${t}**`;\n      if (r.annotations?.italic) t = `*${t}*`;\n      if (r.annotations?.code) t = \"`\" + t + \"`\";\n      if (r.href) t = `[${t}](${r.href})`;\n      return t;\n    }).join(\"\");\n    if (type === \"heading_1\") return `# ${text}`;\n    if (type === \"heading_2\") return `## ${text}`;\n    if (type === \"heading_3\") return `### ${text}`;\n    if (type === \"bulleted_list_item\") return `- ${text}`;\n    if (type === \"numbered_list_item\") return `1. ${text}`;\n    if (type === \"quote\") return `> ${text}`;\n    if (type === \"callout\") return `> ${text}`;\n    if (type === \"code\") return \"```\\n\" + text + \"\\n```\";\n    return text;\n  }).filter(l => l.trim() !== \"\").join(\"\\n\");\n}\n\n// Items arrive appended from Merge node — access by index\nconst items = $input.all();\nconst writingGuide = blocksToMd(items[0]?.json?.results || []);\nconst contentGuide = blocksToMd(items[1]?.json?.results || []);\nconst styleAnalysis = blocksToMd(items[2]?.json?.results || []);\nconst pageData = $('Parse Payload').first().json;\n\nreturn [{\n  json: {\n    ...pageData,\n    brandContext: {\n      writingGuide: writingGuide.substring(0, 8000),\n      contentGuide: contentGuide.substring(0, 8000),\n      styleAnalysis: styleAnalysis.substring(0, 4000)\n    }\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -266,8 +257,7 @@
         1160,
         140
       ],
-      "name": "Merge Brand Context",
-      "id": "08c099a5-ecd5-44de-9ee4-780190886eb4"
+      "name": "Merge Brand Context"
     },
     {
       "parameters": {
@@ -279,8 +269,7 @@
         780,
         400
       ],
-      "name": "Branch A: Fetch Brand Context",
-      "id": "997d8dce-bffc-4295-bab1-4f204c304186"
+      "name": "Branch A: Fetch Brand Context"
     },
     {
       "parameters": {
@@ -299,8 +288,7 @@
         1060,
         0
       ],
-      "name": "Fetch Draft Prompt",
-      "id": "cfa1d3a2-3c89-4d46-a551-7d07e98f7fea"
+      "name": "Fetch Draft Prompt"
     },
     {
       "parameters": {
@@ -319,8 +307,7 @@
         1060,
         280
       ],
-      "name": "Fetch Style Params",
-      "id": "2a68a053-0afd-4353-9e44-0ec97ea8cbe4"
+      "name": "Fetch Style Params"
     },
     {
       "parameters": {
@@ -332,13 +319,12 @@
         1440,
         140
       ],
-      "name": "Merge All Context",
-      "id": "8fc1ac71-6324-44e3-ba47-c6e4e500f97f"
+      "name": "Merge All Context"
     },
     {
       "parameters": {
         "promptType": "define",
-        "text": "=Research this topic for a T-0 blog post:\n\nTopic: {{ $json.name }}\n{{ $json.pitch ? 'Pitch: ' + $json.pitch : '' }}\n{{ $json.url ? 'Source URL: ' + $json.url : 'No specific source URL provided \u2014 use Perplexity for general research.' }}\n\nFocus on: German market perspective, practical implications, counterarguments, statistics, and original sources. Return structured research with citations.",
+        "text": "=Research this topic for a T-0 blog post:\n\nTopic: {{ $json.name }}\n{{ $json.pitch ? 'Pitch: ' + $json.pitch : '' }}\n{{ $json.url ? 'Source URL: ' + $json.url : 'No specific source URL provided — use Perplexity for general research.' }}\n\nFocus on: German market perspective, practical implications, counterarguments, statistics, and original sources. Return structured research with citations.",
         "hasOutputParser": false,
         "options": {
           "systemMessage": "You are a research assistant for T-0, a German AI transformation agency. Given a topic, gather relevant information for a blog post targeting German Mittelstand decision-makers.\n\nUse Jina Reader to read specific URLs. Use Perplexity for broader web research. Focus on:\n1. German/DACH market perspective\n2. Practical implications (not theory)\n3. Counterarguments and risks\n4. Statistics and data points\n5. Primary sources over secondary reports\n\nReturn structured markdown with citations: ## Kernfakten, ## Deutsche Perspektive, ## Gegenargumente, ## Statistiken, ## Quellen."
@@ -350,8 +336,7 @@
         1720,
         140
       ],
-      "name": "Research Agent",
-      "id": "bc0f871b-453f-462d-9b8e-9e0abee376eb"
+      "name": "Research Agent"
     },
     {
       "parameters": {
@@ -371,8 +356,7 @@
         "openRouterApi": {
           "name": "Aarons OpenRouter account"
         }
-      },
-      "id": "448684ee-1e91-49ea-870a-a9f918944e03"
+      }
     },
     {
       "parameters": {
@@ -399,12 +383,11 @@
         "perplexityApi": {
           "name": "Aarons Perplexity account"
         }
-      },
-      "id": "4b3335a3-7575-4a6f-a911-0230ccc59039"
+      }
     },
     {
       "parameters": {
-        "jsCode": "\n// Detect content type + assemble draft prompt\nconst ctx = $('Merge All Context').first().json;\nconst research = $('Research Agent').first().json;\nconst researchText = research.output || research.text || JSON.stringify(research);\n\n// Detect content type if not set\nlet contentType = ctx.contentType;\nif (!contentType) {\n  const combined = (ctx.name + \" \" + ctx.pitch + \" \" + researchText).toLowerCase();\n  if (combined.includes(\"case study\") || combined.includes(\"projekt\") || combined.includes(\"kundenbeispiel\")) {\n    contentType = \"Case Study\";\n  } else if (combined.includes(\"how to\") || combined.includes(\"anleitung\") || combined.includes(\"tutorial\") || combined.includes(\"guide\")) {\n    contentType = \"Resource\";\n  } else if (combined.includes(\"technisch\") || combined.includes(\"api\") || combined.includes(\"implementation\") || combined.includes(\"code\")) {\n    contentType = \"Technical\";\n  } else if (combined.includes(\"ank\u00fcndigung\") || combined.includes(\"announcement\") || combined.includes(\"launch\")) {\n    contentType = \"Announcement\";\n  } else {\n    contentType = \"Opinion\";\n  }\n}\n\nconst sp = ctx.styleParams || {};\nconst voice = sp.voice || {};\nconst structure = sp.structure || {};\nconst targetWords = structure.target_word_count?.[contentType.toLowerCase()] || 1500;\n\n// Assemble system prompt\nlet systemPrompt = ctx.draftPromptTemplate || \"\";\nsystemPrompt = systemPrompt\n  .replace(\"{brand_writing_guide_voice_section}\", ctx.brandContext?.writingGuide || \"\")\n  .replace(\"{blog_content_guide_template_for_{content_type}}\", ctx.brandContext?.contentGuide || \"\")\n  .replace(\"{blog_style_research_summary}\", (ctx.brandContext?.styleAnalysis || \"\").substring(0, 2000))\n  .replace(\"{opinion_strength}\", String(voice.opinion_strength || 0.8))\n  .replace(\"{personal_anecdote_required}\", String(voice.personal_anecdote_required ?? true))\n  .replace(\"{target_word_count}\", String(targetWords))\n  .replace(\"{opening_pattern}\", ctx.openingPattern || \"concrete_scenario\")\n  .replace(\"{closing_pattern}\", ctx.closingPattern || \"actionable_next_step\")\n  .replace(\"{banned_terms_list}\", \"leverage, game-changer, cutting-edge, revolution\u00e4r, bahnbrechend, Paradigmenwechsel\");\n\n// Assemble user prompt\nlet userPrompt = `## Thema: ${ctx.name}\\n\\n`;\nif (ctx.pitch) userPrompt += `## Pitch: ${ctx.pitch}\\n\\n`;\nuserPrompt += `## Content Type: ${contentType}\\n\\n`;\nuserPrompt += `## Ziel-Wortanzahl: ${targetWords}\\n\\n`;\nuserPrompt += `## \u00d6ffnungsmuster: ${ctx.openingPattern}\\n## Schlussmuster: ${ctx.closingPattern}\\n\\n`;\nuserPrompt += `## Recherche-Ergebnisse:\\n\\n${researchText}\\n\\n`;\nuserPrompt += `Schreibe jetzt den vollst\u00e4ndigen Blogpost auf Deutsch.`;\n\nreturn [{\n  json: {\n    ...ctx,\n    contentType,\n    researchText,\n    systemPrompt: systemPrompt.substring(0, 12000),\n    userPrompt: userPrompt.substring(0, 8000)\n  }\n}];\n"
+        "jsCode": "\n// Detect content type + assemble draft prompt\nconst ctx = $('Merge All Context').first().json;\nconst research = $('Research Agent').first().json;\nconst researchText = research.output || research.text || JSON.stringify(research);\n\n// Detect content type if not set\nlet contentType = ctx.contentType;\nif (!contentType) {\n  const combined = (ctx.name + \" \" + ctx.pitch + \" \" + researchText).toLowerCase();\n  if (combined.includes(\"case study\") || combined.includes(\"projekt\") || combined.includes(\"kundenbeispiel\")) {\n    contentType = \"Case Study\";\n  } else if (combined.includes(\"how to\") || combined.includes(\"anleitung\") || combined.includes(\"tutorial\") || combined.includes(\"guide\")) {\n    contentType = \"Resource\";\n  } else if (combined.includes(\"technisch\") || combined.includes(\"api\") || combined.includes(\"implementation\") || combined.includes(\"code\")) {\n    contentType = \"Technical\";\n  } else if (combined.includes(\"ankündigung\") || combined.includes(\"announcement\") || combined.includes(\"launch\")) {\n    contentType = \"Announcement\";\n  } else {\n    contentType = \"Opinion\";\n  }\n}\n\nconst sp = ctx.styleParams || {};\nconst voice = sp.voice || {};\nconst structure = sp.structure || {};\nconst targetWords = structure.target_word_count?.[contentType.toLowerCase()] || 1500;\n\n// Assemble system prompt\nlet systemPrompt = ctx.draftPromptTemplate || \"\";\nsystemPrompt = systemPrompt\n  .replace(\"{brand_writing_guide_voice_section}\", ctx.brandContext?.writingGuide || \"\")\n  .replace(\"{blog_content_guide_template_for_{content_type}}\", ctx.brandContext?.contentGuide || \"\")\n  .replace(\"{blog_style_research_summary}\", (ctx.brandContext?.styleAnalysis || \"\").substring(0, 2000))\n  .replace(\"{opinion_strength}\", String(voice.opinion_strength || 0.8))\n  .replace(\"{personal_anecdote_required}\", String(voice.personal_anecdote_required ?? true))\n  .replace(\"{target_word_count}\", String(targetWords))\n  .replace(\"{opening_pattern}\", ctx.openingPattern || \"concrete_scenario\")\n  .replace(\"{closing_pattern}\", ctx.closingPattern || \"actionable_next_step\")\n  .replace(\"{banned_terms_list}\", \"leverage, game-changer, cutting-edge, revolutionär, bahnbrechend, Paradigmenwechsel\");\n\n// Assemble user prompt\nlet userPrompt = `## Thema: ${ctx.name}\\n\\n`;\nif (ctx.pitch) userPrompt += `## Pitch: ${ctx.pitch}\\n\\n`;\nuserPrompt += `## Content Type: ${contentType}\\n\\n`;\nuserPrompt += `## Ziel-Wortanzahl: ${targetWords}\\n\\n`;\nuserPrompt += `## Öffnungsmuster: ${ctx.openingPattern}\\n## Schlussmuster: ${ctx.closingPattern}\\n\\n`;\nuserPrompt += `## Recherche-Ergebnisse:\\n\\n${researchText}\\n\\n`;\nuserPrompt += `Schreibe jetzt den vollständigen Blogpost auf Deutsch.`;\n\nreturn [{\n  json: {\n    ...ctx,\n    contentType,\n    researchText,\n    systemPrompt: systemPrompt.substring(0, 12000),\n    userPrompt: userPrompt.substring(0, 8000)\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -412,8 +395,7 @@
         2000,
         140
       ],
-      "name": "Assemble Draft Prompt",
-      "id": "9134d91a-484e-4b3e-8f17-2be25edba07e"
+      "name": "Assemble Draft Prompt"
     },
     {
       "parameters": {
@@ -430,8 +412,7 @@
         2280,
         140
       ],
-      "name": "Generate Draft",
-      "id": "3a8d1f9d-8982-4da1-9cce-6d996705f804"
+      "name": "Generate Draft"
     },
     {
       "parameters": {
@@ -451,8 +432,7 @@
         "openRouterApi": {
           "name": "Aarons OpenRouter account"
         }
-      },
-      "id": "faa3c4cf-67ef-4bcf-afc6-147d38ee5447"
+      }
     },
     {
       "parameters": {
@@ -464,8 +444,7 @@
         2460,
         140
       ],
-      "name": "Parse Draft & Build Blocks",
-      "id": "d26ccd87-34dd-4c12-8911-84afe7b4f506"
+      "name": "Parse Draft & Build Blocks"
     },
     {
       "parameters": {
@@ -498,8 +477,7 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "9b6e6a63-2f09-4a61-8ebd-b77102933a72"
+      }
     },
     {
       "parameters": {
@@ -532,12 +510,11 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "c205d1bc-a359-446d-95a4-ebdc00e18d3c"
+      }
     },
     {
       "parameters": {
-        "jsCode": "\n// Build evaluation prompt\nconst draft = $('Parse Draft & Build Blocks').first().json;\nconst cleanDraft = draft.cleanDraft;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator f\u00fcr T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verst\u00e4ndlich? Keine unerkl\u00e4rten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? H\u00e4lt Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser wei\u00df was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{\n  json: {\n    pageId: draft.pageId,\n    contentType: draft.contentType,\n    cleanDraft,\n    evalSystemPrompt,\n    evalUserPrompt: `Bewerte diesen Blogpost-Entwurf:\\n\\n${cleanDraft.substring(0, 10000)}`\n  }\n}];\n"
+        "jsCode": "\n// Build evaluation prompt\nconst draft = $('Parse Draft & Build Blocks').first().json;\nconst cleanDraft = draft.cleanDraft;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator für T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verständlich? Keine unerklärten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? Hält Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser weiß was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{\n  json: {\n    pageId: draft.pageId,\n    contentType: draft.contentType,\n    cleanDraft,\n    evalSystemPrompt,\n    evalUserPrompt: `Bewerte diesen Blogpost-Entwurf:\\n\\n${cleanDraft.substring(0, 10000)}`\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -545,8 +522,7 @@
         3000,
         140
       ],
-      "name": "Build Evaluation Prompt",
-      "id": "d76051aa-0c3c-45ae-99c6-120ca571e849"
+      "name": "Build Evaluation Prompt"
     },
     {
       "parameters": {
@@ -563,8 +539,7 @@
         3180,
         140
       ],
-      "name": "Evaluate Draft",
-      "id": "98c49e42-4997-4e7a-a997-d3d52b8a04d5"
+      "name": "Evaluate Draft"
     },
     {
       "parameters": {
@@ -584,8 +559,7 @@
         "openRouterApi": {
           "name": "Aarons OpenRouter account"
         }
-      },
-      "id": "edd5178c-d436-4d67-9317-f2c2c0b6b864"
+      }
     },
     {
       "parameters": {
@@ -597,12 +571,11 @@
         3180,
         360
       ],
-      "name": "Eval Output Parser",
-      "id": "07ca0e3f-d966-4771-8522-37e66a741a61"
+      "name": "Eval Output Parser"
     },
     {
       "parameters": {
-        "jsCode": "\n// Apply evaluation gate rules and determine status\nlet evalData;\ntry {\n  evalData = $('Build Evaluation Prompt').first().json;\n} catch(e) {\n  evalData = $('B: Build Re-Eval Prompt').first().json;\n}\nconst evalResult = $input.first().json;\n\n// Extract scores from agent output (structured output parser returns an object)\nlet scores;\nif (typeof evalResult.output === 'object' && evalResult.output !== null) {\n  scores = evalResult.output;\n} else if (typeof evalResult.output === 'string') {\n  try { scores = JSON.parse(evalResult.output); } catch(e) {\n    const jsonMatch = evalResult.output.match(/\\{[\\s\\S]*\\}/);\n    scores = jsonMatch ? JSON.parse(jsonMatch[0]) : {};\n  }\n} else {\n  scores = evalResult;\n}\n\nconst clarity = scores.clarity?.score || 0;\nconst structure = scores.structure?.score || 0;\nconst accuracy = scores.accuracy?.score || 0;\nconst credibility = scores.credibility?.score || 0;\nconst engagement = scores.engagement?.score || 0;\nconst voice = scores.voice?.score || 0;\nconst actionability = scores.actionability?.score || 0;\n\nconst composite = clarity*1 + structure*1 + accuracy*1.5 + credibility*1.5 + engagement*1 + voice*1 + actionability*1;\n\nlet qualityTier = \"Poor\";\nif (composite >= 34) qualityTier = \"Excellent\";\nelse if (composite >= 28) qualityTier = \"Good\";\nelse if (composite >= 22) qualityTier = \"Acceptable\";\nelse if (composite >= 16) qualityTier = \"Below Standard\";\n\n// Gate rules\nlet newStatus = \"Draft\";\nlet blocked = false;\nlet blockReason = \"\";\n\nif (voice < 4) {\n  blocked = true;\n  blockReason = \"Voice score below minimum threshold (4). Constitutional principle: T-0 Voice ist nicht verhandelbar.\";\n} else if (clarity < 3 || structure < 3 || accuracy < 3 || credibility < 3 || engagement < 3 || actionability < 3) {\n  blocked = true;\n  const low = [];\n  if (clarity < 3) low.push(\"Clarity\");\n  if (structure < 3) low.push(\"Structure\");\n  if (accuracy < 3) low.push(\"Accuracy\");\n  if (credibility < 3) low.push(\"Credibility\");\n  if (engagement < 3) low.push(\"Engagement\");\n  if (actionability < 3) low.push(\"Actionability\");\n  blockReason = `Dimensions below minimum (3): ${low.join(\", \")}`;\n}\n\nif (!blocked && composite >= 28) {\n  newStatus = \"Pre Review\";\n}\n\nconst evalNotes = `Top: ${scores.top_strength || \"N/A\"} | Weakness: ${scores.primary_weakness || \"N/A\"} | Voice: ${scores.voice_assessment || \"N/A\"}`;\n\nconst commentText = blocked\n  ? `\u26a0\ufe0f Below threshold. ${blockReason}. Composite: ${composite.toFixed(1)}/40 (${qualityTier})`\n  : newStatus === \"Pre Review\"\n    ? `\u2705 Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Ready for review.`\n    : `\ud83d\udcdd Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Below \"Good\" threshold (28). Consider revising.`;\n\nreturn [{\n  json: {\n    pageId: evalData.pageId,\n    scores: { clarity, structure, accuracy, credibility, engagement, voice, actionability },\n    composite: Math.round(composite * 10) / 10,\n    qualityTier,\n    newStatus,\n    evalNotes,\n    commentText,\n    blocked,\n    blockReason,\n    perDimensionFeedback: scores\n  }\n}];\n"
+        "jsCode": "\n// Apply evaluation gate rules and determine status\nlet evalData;\ntry {\n  evalData = $('Build Evaluation Prompt').first().json;\n} catch(e) {\n  evalData = $('B: Build Re-Eval Prompt').first().json;\n}\nconst evalResult = $input.first().json;\n\n// Extract scores from agent output (structured output parser returns an object)\nlet scores;\nif (typeof evalResult.output === 'object' && evalResult.output !== null) {\n  scores = evalResult.output;\n} else if (typeof evalResult.output === 'string') {\n  try { scores = JSON.parse(evalResult.output); } catch(e) {\n    const jsonMatch = evalResult.output.match(/\\{[\\s\\S]*\\}/);\n    scores = jsonMatch ? JSON.parse(jsonMatch[0]) : {};\n  }\n} else {\n  scores = evalResult;\n}\n\nconst clarity = scores.clarity?.score || 0;\nconst structure = scores.structure?.score || 0;\nconst accuracy = scores.accuracy?.score || 0;\nconst credibility = scores.credibility?.score || 0;\nconst engagement = scores.engagement?.score || 0;\nconst voice = scores.voice?.score || 0;\nconst actionability = scores.actionability?.score || 0;\n\nconst composite = clarity*1 + structure*1 + accuracy*1.5 + credibility*1.5 + engagement*1 + voice*1 + actionability*1;\n\nlet qualityTier = \"Poor\";\nif (composite >= 34) qualityTier = \"Excellent\";\nelse if (composite >= 28) qualityTier = \"Good\";\nelse if (composite >= 22) qualityTier = \"Acceptable\";\nelse if (composite >= 16) qualityTier = \"Below Standard\";\n\n// Gate rules\nlet newStatus = \"Draft\";\nlet blocked = false;\nlet blockReason = \"\";\n\nif (voice < 4) {\n  blocked = true;\n  blockReason = \"Voice score below minimum threshold (4). Constitutional principle: T-0 Voice ist nicht verhandelbar.\";\n} else if (clarity < 3 || structure < 3 || accuracy < 3 || credibility < 3 || engagement < 3 || actionability < 3) {\n  blocked = true;\n  const low = [];\n  if (clarity < 3) low.push(\"Clarity\");\n  if (structure < 3) low.push(\"Structure\");\n  if (accuracy < 3) low.push(\"Accuracy\");\n  if (credibility < 3) low.push(\"Credibility\");\n  if (engagement < 3) low.push(\"Engagement\");\n  if (actionability < 3) low.push(\"Actionability\");\n  blockReason = `Dimensions below minimum (3): ${low.join(\", \")}`;\n}\n\nif (!blocked && composite >= 28) {\n  newStatus = \"Pre Review\";\n}\n\nconst evalNotes = `Top: ${scores.top_strength || \"N/A\"} | Weakness: ${scores.primary_weakness || \"N/A\"} | Voice: ${scores.voice_assessment || \"N/A\"}`;\n\nconst commentText = blocked\n  ? `⚠️ Below threshold. ${blockReason}. Composite: ${composite.toFixed(1)}/40 (${qualityTier})`\n  : newStatus === \"Pre Review\"\n    ? `✅ Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Ready for review.`\n    : `📝 Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Below \"Good\" threshold (28). Consider revising.`;\n\nreturn [{\n  json: {\n    pageId: evalData.pageId,\n    scores: { clarity, structure, accuracy, credibility, engagement, voice, actionability },\n    composite: Math.round(composite * 10) / 10,\n    qualityTier,\n    newStatus,\n    evalNotes,\n    commentText,\n    blocked,\n    blockReason,\n    perDimensionFeedback: scores\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -610,8 +583,7 @@
         3360,
         140
       ],
-      "name": "Apply Gate Rules",
-      "id": "3011cf07-0823-4d02-aff4-4fb96b2591d3"
+      "name": "Apply Gate Rules"
     },
     {
       "parameters": {
@@ -644,8 +616,7 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "6abe377c-36fc-4912-9bdd-66a72ff2fc00"
+      }
     },
     {
       "parameters": {
@@ -678,8 +649,7 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "64abec72-b70b-43b6-ab78-e68a6bad2ba3"
+      }
     },
     {
       "parameters": {
@@ -693,8 +663,7 @@
         960,
         140
       ],
-      "name": "Wait for Brand Fetches",
-      "id": "9204ea88-b8f9-4b13-9cf3-8c27284f6647"
+      "name": "Wait for Brand Fetches"
     },
     {
       "parameters": {
@@ -707,8 +676,7 @@
         1340,
         140
       ],
-      "name": "Wait for Config Fetches",
-      "id": "871c2186-0dbf-4360-9713-dc1ff6002918"
+      "name": "Wait for Config Fetches"
     },
     {
       "parameters": {
@@ -721,12 +689,11 @@
         2820,
         140
       ],
-      "name": "Wait for Notion Writes",
-      "id": "45008209-5614-4bcc-86f1-e0dce6559616"
+      "name": "Wait for Notion Writes"
     },
     {
       "parameters": {
-        "jsCode": "\n// Deduplication guard: prevent re-trigger when pipeline changes status\n// Pipeline sets: Draft (Branch A/B output), Published (Branch C output)\n// Block these + manual-only statuses that should not trigger the pipeline\nconst status = $json.status || \"\";\nconst blockedStatuses = [\"Draft\", \"Pre Review\", \"In Review\", \"Published\"];\n\nif (blockedStatuses.includes(status)) {\n  // Pipeline-set or non-triggering status \u2014 stop execution\n  return;\n}\n\n// Valid triggers: Idea, Backlog (Branch A), In Revision (Branch B), Publishable (Branch C)\nreturn $input.item;\n",
+        "jsCode": "\n// Deduplication guard: prevent re-trigger when pipeline changes status\n// Pipeline sets: Draft (Branch A/B output), Published (Branch C output)\n// Block these + manual-only statuses that should not trigger the pipeline\nconst status = $json.status || \"\";\nconst blockedStatuses = [\"Draft\", \"Pre Review\", \"In Review\", \"Published\"];\n\nif (blockedStatuses.includes(status)) {\n  // Pipeline-set or non-triggering status — stop execution\n  return;\n}\n\n// Valid triggers: Idea, Backlog (Branch A), In Revision (Branch B), Publishable (Branch C)\nreturn $input.item;\n",
         "mode": "runOnceForEachItem"
       },
       "type": "n8n-nodes-base.code",
@@ -735,8 +702,7 @@
         320,
         140
       ],
-      "name": "Dedup Guard",
-      "id": "71cddb99-fedf-4313-aba8-a34e9f4b2fe1"
+      "name": "Dedup Guard"
     },
     {
       "parameters": {},
@@ -746,8 +712,7 @@
         3860,
         500
       ],
-      "name": "Error Trigger",
-      "id": "bc55eead-fc9b-4b73-9334-ae1901e70470"
+      "name": "Error Trigger"
     },
     {
       "parameters": {
@@ -759,8 +724,7 @@
         4160,
         500
       ],
-      "name": "Format Error Comment",
-      "id": "c4c0d388-44fb-495d-9d5f-8292005c66e4"
+      "name": "Format Error Comment"
     },
     {
       "parameters": {
@@ -793,11 +757,9 @@
         "notionApi": {
           "name": "Aarons Notion account - T-0 Scope"
         }
-      },
-      "id": "2a6fb19b-b9ae-46a3-8ca3-91f8092074de"
+      }
     },
     {
-      "id": "d3061cc9-2cfc-49f6-9f95-43f61ca3a6a1",
       "name": "C: Fetch Full Page",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -828,7 +790,6 @@
       }
     },
     {
-      "id": "a858ecec-04f8-4d84-87c5-42515ab19643",
       "name": "C: Build Ghost HTML",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -845,7 +806,6 @@
         "jsCode": "\nconst input = $input.first().json;\nconst parsePayload = $('Parse Payload').first().json;\n\n// Duplicate guard: check if Ghost ID is already set\nconst existingGhostId = parsePayload.rawProperties?.['Ghost ID']?.rich_text?.[0]?.plain_text || '';\nif (existingGhostId) {\n  throw new Error('Ghost post already exists (ID: ' + existingGhostId + '). Delete existing post first to re-publish.');\n}\n\n// Build post object\nconst post = {\n  title: input.title,\n  html: input.html,\n  status: 'draft',\n  tags: input.tags,\n  excerpt: (input.pitch || '').substring(0, 300) || undefined,\n  feature_image: input.imageUrl || undefined,\n  meta_title: (input.title || '').substring(0, 60) || undefined,\n  meta_description: (input.pitch || '').substring(0, 155) || undefined,\n  newsletter: { slug: 'default-newsletter' }\n};\n\n// If due date is set, schedule it\nif (input.dueDatePlanned) {\n  const dueDate = new Date(input.dueDatePlanned + 'T12:00:00Z');\n  const month = dueDate.getMonth();\n  const isCEST = month >= 2 && month <= 9;\n  const offset = isCEST ? '+02:00' : '+01:00';\n  const scheduleDate = new Date(input.dueDatePlanned + 'T09:00:00' + offset);\n  if (scheduleDate > new Date()) {\n    post.status = 'scheduled';\n    post.published_at = scheduleDate.toISOString();\n  }\n}\n\nreturn [{json: {\n  ghostPayload: { posts: [post] },\n  pageId: input.pageId,\n  title: input.title\n}}];\n",
         "options": {}
       },
-      "id": "be62d53f-751e-43b2-a22f-2781fc378909",
       "name": "C: Build Ghost Payload",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -855,7 +815,6 @@
       ]
     },
     {
-      "id": "5d97b22d-3488-49ec-8a3d-a4ab4c4aa327",
       "name": "C: Update Notion Published",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -889,7 +848,6 @@
       }
     },
     {
-      "id": "34aa945d-2948-4809-b63c-3376b04f4f52",
       "name": "C: Post Publication Comment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -913,7 +871,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ JSON.stringify({ parent: { page_id: $(\"C: Parse Ghost Response\").first().json.pageId }, rich_text: [{ text: { content: \"\u2705 Published to Ghost (\" + $(\"C: Parse Ghost Response\").first().json.ghostStatus + \"): \" + $(\"C: Parse Ghost Response\").first().json.ghostUrl } }] }) }}",
+        "jsonBody": "={{ JSON.stringify({ parent: { page_id: $(\"C: Parse Ghost Response\").first().json.pageId }, rich_text: [{ text: { content: \"✅ Published to Ghost (\" + $(\"C: Parse Ghost Response\").first().json.ghostStatus + \"): \" + $(\"C: Parse Ghost Response\").first().json.ghostUrl } }] }) }}",
         "options": {}
       },
       "credentials": {
@@ -923,7 +881,6 @@
       }
     },
     {
-      "id": "caf28d61-c64e-4832-b3ad-9408423e8d74",
       "name": "B: Fetch Feedback",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -954,7 +911,6 @@
       }
     },
     {
-      "id": "e67200e1-034e-4d7f-a4af-ff39989455eb",
       "name": "B: Fetch Writing Guide",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -985,7 +941,6 @@
       }
     },
     {
-      "id": "9a4cebdb-12b7-459e-a200-6f4972c4e341",
       "name": "B: Assemble Revision Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -994,11 +949,10 @@
         1100
       ],
       "parameters": {
-        "jsCode": "\n// Assemble revision context: feedback + current draft + brand context\nconst parsePayload = $('Parse Payload').first().json;\nconst commentsResp = $('B: Fetch Feedback').first().json;\nconst blocksResp = $('B: Fetch Current Draft').first().json;\nconst brandResp = $('B: Fetch Writing Guide').first().json;\n\n// Extract feedback comments (filter to human comments, skip bot/pipeline comments)\nconst comments = (commentsResp.results || [])\n  .filter(c => {\n    const text = (c.rich_text || []).map(t => t.plain_text).join('');\n    // Skip pipeline-generated comments\n    if (text.startsWith('\u2705') || text.startsWith('\ud83d\udcca') || text.startsWith('\ud83d\udd04') || text.startsWith('\u274c')) return false;\n    return true;\n  })\n  .map(c => (c.rich_text || []).map(t => t.plain_text).join(''))\n  .filter(t => t.length > 0);\n\nconst feedbackText = comments.length > 0\n  ? comments.join('\\n\\n---\\n\\n')\n  : 'No specific feedback provided. Please improve the draft based on the evaluation scores.';\n\n// Convert current draft blocks to markdown for context\nconst blocks = blocksResp.results || [];\nlet draftText = '';\nfor (const block of blocks) {\n  const type = block.type;\n  if (type === 'paragraph') {\n    draftText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_1') {\n    draftText += '# ' + (block.heading_1.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_2') {\n    draftText += '## ' + (block.heading_2.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_3') {\n    draftText += '### ' + (block.heading_3.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'bulleted_list_item') {\n    draftText += '- ' + (block.bulleted_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'numbered_list_item') {\n    draftText += '1. ' + (block.numbered_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'quote') {\n    draftText += '> ' + (block.quote.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'divider') {\n    draftText += '---\\n\\n';\n  }\n}\n\n// Extract brand context as text\nconst brandBlocks = brandResp.results || [];\nlet brandText = '';\nfor (const block of brandBlocks) {\n  if (block.type === 'paragraph') {\n    brandText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  }\n}\n\nreturn [{json: {\n  pageId: parsePayload.pageId,\n  name: parsePayload.name,\n  pitch: parsePayload.pitch,\n  feedbackText: feedbackText,\n  currentDraft: draftText.trim(),\n  brandContext: brandText.trim(),\n  commentCount: comments.length,\n  blockIds: blocks.map(b => b.id)  // For archiving old blocks\n}}];\n"
+        "jsCode": "\n// Assemble revision context: feedback + current draft + brand context\nconst parsePayload = $('Parse Payload').first().json;\nconst commentsResp = $('B: Fetch Feedback').first().json;\nconst blocksResp = $('B: Fetch Draft Blocks').first().json;\nconst brandResp = $('B: Fetch Writing Guide').first().json;\n\n// Extract feedback comments (filter to human comments, skip bot/pipeline comments)\nconst comments = (commentsResp.results || [])\n  .filter(c => {\n    const text = (c.rich_text || []).map(t => t.plain_text).join('');\n    // Skip pipeline-generated comments\n    if (text.startsWith('✅') || text.startsWith('📊') || text.startsWith('🔄') || text.startsWith('❌')) return false;\n    return true;\n  })\n  .map(c => (c.rich_text || []).map(t => t.plain_text).join(''))\n  .filter(t => t.length > 0);\n\nconst feedbackText = comments.length > 0\n  ? comments.join('\\n\\n---\\n\\n')\n  : 'No specific feedback provided. Please improve the draft based on the evaluation scores.';\n\n// Convert current draft blocks to markdown for context\nconst blocks = blocksResp.results || [];\nlet draftText = '';\nfor (const block of blocks) {\n  const type = block.type;\n  if (type === 'paragraph') {\n    draftText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_1') {\n    draftText += '# ' + (block.heading_1.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_2') {\n    draftText += '## ' + (block.heading_2.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_3') {\n    draftText += '### ' + (block.heading_3.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'bulleted_list_item') {\n    draftText += '- ' + (block.bulleted_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'numbered_list_item') {\n    draftText += '1. ' + (block.numbered_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'quote') {\n    draftText += '> ' + (block.quote.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'divider') {\n    draftText += '---\\n\\n';\n  }\n}\n\n// Extract brand context as text\nconst brandBlocks = brandResp.results || [];\nlet brandText = '';\nfor (const block of brandBlocks) {\n  if (block.type === 'paragraph') {\n    brandText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  }\n}\n\nreturn [{json: {\n  pageId: parsePayload.pageId,\n  name: parsePayload.name,\n  pitch: parsePayload.pitch,\n  feedbackText: feedbackText,\n  currentDraft: draftText.trim(),\n  brandContext: brandText.trim(),\n  commentCount: comments.length,\n  blockIds: blocks.map(b => b.id)  // For archiving old blocks\n}}];\n"
       }
     },
     {
-      "id": "c70e9ef2-0ab4-4b73-94be-7b8b37eb71a0",
       "name": "B: Archive & Redraft",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1007,11 +961,10 @@
         1100
       ],
       "parameters": {
-        "jsCode": "\n// Archive old blocks into a toggle and prepare for redraft\n// This node outputs the data needed for the HTTP calls that follow\nconst input = $input.first().json;\n\n// We'll delete old blocks and create a toggle with archived content\n// Then the draft agent (reusing Branch A) will append new content\n\n// Count existing revisions by looking at toggle blocks named \"Previous Version\"\n// For now, just mark this as revision v2+\n\nreturn [{json: {\n  pageId: input.pageId,\n  name: input.name,\n  pitch: input.pitch,\n  feedbackText: input.feedbackText,\n  currentDraft: input.currentDraft,\n  brandContext: input.brandContext,\n  blockIds: input.blockIds,\n  // System prompt for revision\n  systemPrompt: `You are revising a blog post draft for T-0, a German AI consultancy.\n\n## Brand Voice Context\n${input.brandContext}\n\n## Current Draft\n${input.currentDraft}\n\n## Editor Feedback\n${input.feedbackText}\n\n## Instructions\n1. Address ALL feedback points explicitly\n2. Maintain the same structure unless feedback specifically requests changes\n3. Keep the T-0 voice: confident but not arrogant, practical, German market focus\n4. Output the revised draft in markdown format\n5. Include a <!-- META revision:true feedback_points_addressed:N --> comment at the end\n\nWrite the complete revised article in German. Do not truncate or summarize \u2014 output the full revised draft.`\n}}];\n"
+        "jsCode": "\n// Archive old blocks into a toggle and prepare for redraft\n// This node outputs the data needed for the HTTP calls that follow\nconst input = $input.first().json;\n\n// We'll delete old blocks and create a toggle with archived content\n// Then the draft agent (reusing Branch A) will append new content\n\n// Count existing revisions by looking at toggle blocks named \"Previous Version\"\n// For now, just mark this as revision v2+\n\nreturn [{json: {\n  pageId: input.pageId,\n  name: input.name,\n  pitch: input.pitch,\n  feedbackText: input.feedbackText,\n  currentDraft: input.currentDraft,\n  brandContext: input.brandContext,\n  blockIds: input.blockIds,\n  // System prompt for revision\n  systemPrompt: `You are revising a blog post draft for T-0, a German AI consultancy.\n\n## Brand Voice Context\n${input.brandContext}\n\n## Current Draft\n${input.currentDraft}\n\n## Editor Feedback\n${input.feedbackText}\n\n## Instructions\n1. Address ALL feedback points explicitly\n2. Maintain the same structure unless feedback specifically requests changes\n3. Keep the T-0 voice: confident but not arrogant, practical, German market focus\n4. Output the revised draft in markdown format\n5. Include a <!-- META revision:true feedback_points_addressed:N --> comment at the end\n\nWrite the complete revised article in German. Do not truncate or summarize — output the full revised draft.`\n}}];\n"
       }
     },
     {
-      "id": "8dc218f1-cd3e-4bf6-a406-cc01bebf4a4d",
       "name": "B: Revision LLM",
       "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
       "typeVersion": 1,
@@ -1033,7 +986,6 @@
       }
     },
     {
-      "id": "c1ece0bd-ddca-4200-872d-38050733e9a8",
       "name": "B: Generate Revised Draft",
       "type": "@n8n/n8n-nodes-langchain.agent",
       "typeVersion": 1.7,
@@ -1051,7 +1003,6 @@
       }
     },
     {
-      "id": "33940ebb-0481-4514-9823-5126e8da1f9f",
       "name": "B: Build Re-Eval Prompt",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1060,11 +1011,10 @@
         1100
       ],
       "parameters": {
-        "jsCode": "\n// Build evaluation prompt for re-evaluation after revision\nconst input = $input.first().json;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator f\u00fcr T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verst\u00e4ndlich? Keine unerkl\u00e4rten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? H\u00e4lt Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser wei\u00df was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{json: {\n  pageId: input.pageId,\n  contentType: input.contentType || '',\n  cleanDraft: input.cleanDraft || '',\n  evalSystemPrompt,\n  evalUserPrompt: `Bewerte diesen \u00fcberarbeiteten Blogpost-Entwurf:\\n\\n${(input.cleanDraft || '').substring(0, 10000)}`\n}}];\n"
+        "jsCode": "\n// Build evaluation prompt for re-evaluation after revision\nconst input = $input.first().json;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator für T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verständlich? Keine unerklärten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? Hält Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser weiß was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{json: {\n  pageId: input.pageId,\n  contentType: input.contentType || '',\n  cleanDraft: input.cleanDraft || '',\n  evalSystemPrompt,\n  evalUserPrompt: `Bewerte diesen überarbeiteten Blogpost-Entwurf:\\n\\n${(input.cleanDraft || '').substring(0, 10000)}`\n}}];\n"
       }
     },
     {
-      "id": "be8b1d66-28ca-40fe-a806-3c7af1860d17",
       "name": "Fetch Failed Execution",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1104,7 +1054,6 @@
         "jsonBody": "={{ JSON.stringify($json.ghostPayload) }}",
         "options": {}
       },
-      "id": "ghost-post-http",
       "name": "C: Create Ghost Post",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1114,7 +1063,7 @@
       ],
       "credentials": {
         "ghostAdminApi": {
-          "name": "Ghost Admin API \u2014 T-0 (t-0.co)"
+          "name": "Ghost Admin API — T-0 (t-0.co)"
         }
       }
     },
@@ -1123,7 +1072,6 @@
         "jsCode": "\nconst httpResp = $input.first().json;\nconst buildPayload = $('C: Build Ghost Payload').first().json;\n\n// Ghost API returns { posts: [{ id, url, slug, status, ... }] }\nconst createdPost = httpResp.posts?.[0];\nif (!createdPost) {\n  throw new Error('Ghost API did not return a post: ' + JSON.stringify(httpResp).substring(0, 500));\n}\n\nreturn [{json: {\n  pageId: buildPayload.pageId,\n  ghostId: createdPost.id,\n  ghostUrl: createdPost.url,\n  ghostStatus: createdPost.status,\n  ghostSlug: createdPost.slug,\n  title: buildPayload.title\n}}];\n",
         "options": {}
       },
-      "id": "ghost-parse-resp",
       "name": "C: Parse Ghost Response",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1137,7 +1085,6 @@
         "jsCode": "// Prepare individual items for block deletion\nconst input = $input.first().json;\nconst blockIds = input.blockIds || [];\n\n// Output one item per blockId for the HTTP Request to process\nconst items = blockIds.map(id => ({json: {blockId: id}}));\n\n// If no blocks to delete, output empty to skip\nif (items.length === 0) {\n  return [{json: {blockId: '_skip_'}}];\n}\nreturn items;\n",
         "options": {}
       },
-      "id": "b-prepare-deletes",
       "name": "B: Prepare Deletes",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1170,7 +1117,6 @@
           }
         }
       },
-      "id": "b-delete-block",
       "name": "B: Delete Block",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1190,7 +1136,6 @@
         "jsCode": "// Build archive toggle and pass through data\nconst input = $('B: Archive & Redraft').first().json;\nconst pageId = input.pageId;\nconst currentDraft = input.currentDraft || '';\n\nconst archiveChildren = [\n  {\n    type: 'toggle',\n    toggle: {\n      rich_text: [{ text: { content: '\\u{1F4E6} Previous Version (pre-revision)' } }],\n      children: [\n        {\n          type: 'paragraph',\n          paragraph: {\n            rich_text: [{ text: { content: currentDraft.substring(0, 2000) } }]\n          }\n        }\n      ]\n    }\n  },\n  { type: 'divider', divider: {} }\n];\n\nreturn [{json: {\n  archiveBody: JSON.stringify({ children: archiveChildren }),\n  pageId: pageId,\n  name: input.name,\n  pitch: input.pitch,\n  systemPrompt: input.systemPrompt,\n  feedbackText: input.feedbackText,\n  brandContext: input.brandContext\n}}];\n",
         "options": {}
       },
-      "id": "b-build-archive",
       "name": "B: Build Archive",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1219,7 +1164,6 @@
         "jsonBody": "={{ $json.archiveBody }}",
         "options": {}
       },
-      "id": "b-write-archive",
       "name": "B: Write Archive",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1238,7 +1182,6 @@
         "jsCode": "// Pass through data for downstream revision generation\nconst archive = $('B: Build Archive').first().json;\nreturn [{json: {\n  pageId: archive.pageId,\n  name: archive.name,\n  pitch: archive.pitch,\n  systemPrompt: archive.systemPrompt,\n  feedbackText: archive.feedbackText,\n  brandContext: archive.brandContext\n}}];\n",
         "options": {}
       },
-      "id": "b-pass-delete-data",
       "name": "B: Pass Delete Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1249,10 +1192,9 @@
     },
     {
       "parameters": {
-        "jsCode": "\nconst input = $('B: Pass Delete Data').first().json;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst pageId = input.pageId;\n\n// Convert markdown to Notion blocks with inline formatting\nfunction parseInlineFormatting(text) {\n  const segments = [];\n  const pattern = /(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|`(.+?)`|\\[(.+?)\\]\\((.+?)\\))/g;\n  let lastIndex = 0;\n  let match;\n  while ((match = pattern.exec(text)) !== null) {\n    if (match.index > lastIndex) {\n      segments.push({ text: { content: text.slice(lastIndex, match.index) } });\n    }\n    if (match[2]) { segments.push({ text: { content: match[2] }, annotations: { bold: true } }); }\n    else if (match[3]) { segments.push({ text: { content: match[3] }, annotations: { italic: true } }); }\n    else if (match[4]) { segments.push({ text: { content: match[4] }, annotations: { code: true } }); }\n    else if (match[5] && match[6]) { segments.push({ text: { content: match[5], link: { url: match[6] } } }); }\n    lastIndex = match.index + match[0].length;\n  }\n  if (lastIndex < text.length) { segments.push({ text: { content: text.slice(lastIndex) } }); }\n  if (segments.length === 0) { segments.push({ text: { content: text } }); }\n  return segments;\n}\n\nconst lines = draftText.split('\\n');\nconst blocks = [];\nlet inCodeFence = false;\nlet codeLines = [];\nlet codeLang = '';\n\nfor (let line of lines) {\n  if (line.trim().startsWith('```')) {\n    if (inCodeFence) {\n      blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n      inCodeFence = false; codeLines = []; codeLang = '';\n      continue;\n    } else { inCodeFence = true; codeLang = line.trim().slice(3).trim(); continue; }\n  }\n  if (inCodeFence) { codeLines.push(line); continue; }\n  line = line.trim();\n  if (!line) continue;\n  if (line.startsWith('<!--') && line.includes('META')) continue;\n\n  if (line.startsWith('# ')) { blocks.push({ type: 'heading_1', heading_1: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.startsWith('## ')) { blocks.push({ type: 'heading_2', heading_2: { rich_text: parseInlineFormatting(line.slice(3).trim()) } }); }\n  else if (line.startsWith('### ')) { blocks.push({ type: 'heading_3', heading_3: { rich_text: parseInlineFormatting(line.slice(4).trim()) } }); }\n  else if (line.startsWith('- ') || line.startsWith('* ')) { blocks.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.match(/^\\d+\\.\\s/)) { blocks.push({ type: 'numbered_list_item', numbered_list_item: { rich_text: parseInlineFormatting(line.replace(/^\\d+\\.\\s/, '').trim()) } }); }\n  else if (line.startsWith('> ')) { blocks.push({ type: 'quote', quote: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line === '---') { blocks.push({ type: 'divider', divider: {} }); }\n  else { blocks.push({ type: 'paragraph', paragraph: { rich_text: parseInlineFormatting(line) } }); }\n}\n\nif (inCodeFence && codeLines.length > 0) {\n  blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n}\n\n// Sanitize: split >2000 char content\nfor (const block of blocks) {\n  const btype = block.type;\n  if (block[btype] && block[btype].rich_text) {\n    const sanitized = [];\n    for (const rt of block[btype].rich_text) {\n      const content = rt.text ? rt.text.content || '' : '';\n      if (content.length <= 2000) { sanitized.push(rt); }\n      else { for (let ci = 0; ci < content.length; ci += 2000) {\n        const chunk = { text: { content: content.slice(ci, ci + 2000) } };\n        if (rt.text && rt.text.link) chunk.text.link = rt.text.link;\n        if (rt.annotations) chunk.annotations = Object.assign({}, rt.annotations);\n        sanitized.push(chunk);\n      }}\n    }\n    block[btype].rich_text = sanitized;\n  }\n}\n\n// Split into batches of 100 \u2014 output one item per batch\nconst batchSize = 100;\nconst items = [];\nfor (let i = 0; i < blocks.length; i += batchSize) {\n  const batch = blocks.slice(i, i + batchSize);\n  items.push({json: {\n    batchBody: JSON.stringify({ children: batch }),\n    pageId: pageId,\n    batchIndex: Math.floor(i / batchSize),\n    totalBlocks: blocks.length\n  }});\n}\n\nif (items.length === 0) {\n  items.push({json: { batchBody: JSON.stringify({ children: [] }), pageId: pageId, batchIndex: 0, totalBlocks: 0 }});\n}\n\nreturn items;\n",
+        "jsCode": "\nconst input = $('B: Pass Delete Data').first().json;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst pageId = input.pageId;\n\n// Convert markdown to Notion blocks with inline formatting\nfunction parseInlineFormatting(text) {\n  const segments = [];\n  const pattern = /(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|`(.+?)`|\\[(.+?)\\]\\((.+?)\\))/g;\n  let lastIndex = 0;\n  let match;\n  while ((match = pattern.exec(text)) !== null) {\n    if (match.index > lastIndex) {\n      segments.push({ text: { content: text.slice(lastIndex, match.index) } });\n    }\n    if (match[2]) { segments.push({ text: { content: match[2] }, annotations: { bold: true } }); }\n    else if (match[3]) { segments.push({ text: { content: match[3] }, annotations: { italic: true } }); }\n    else if (match[4]) { segments.push({ text: { content: match[4] }, annotations: { code: true } }); }\n    else if (match[5] && match[6]) { segments.push({ text: { content: match[5], link: { url: match[6] } } }); }\n    lastIndex = match.index + match[0].length;\n  }\n  if (lastIndex < text.length) { segments.push({ text: { content: text.slice(lastIndex) } }); }\n  if (segments.length === 0) { segments.push({ text: { content: text } }); }\n  return segments;\n}\n\nconst lines = draftText.split('\\n');\nconst blocks = [];\nlet inCodeFence = false;\nlet codeLines = [];\nlet codeLang = '';\n\nfor (let line of lines) {\n  if (line.trim().startsWith('```')) {\n    if (inCodeFence) {\n      blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n      inCodeFence = false; codeLines = []; codeLang = '';\n      continue;\n    } else { inCodeFence = true; codeLang = line.trim().slice(3).trim(); continue; }\n  }\n  if (inCodeFence) { codeLines.push(line); continue; }\n  line = line.trim();\n  if (!line) continue;\n  if (line.startsWith('<!--') && line.includes('META')) continue;\n\n  if (line.startsWith('# ')) { blocks.push({ type: 'heading_1', heading_1: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.startsWith('## ')) { blocks.push({ type: 'heading_2', heading_2: { rich_text: parseInlineFormatting(line.slice(3).trim()) } }); }\n  else if (line.startsWith('### ')) { blocks.push({ type: 'heading_3', heading_3: { rich_text: parseInlineFormatting(line.slice(4).trim()) } }); }\n  else if (line.startsWith('- ') || line.startsWith('* ')) { blocks.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.match(/^\\d+\\.\\s/)) { blocks.push({ type: 'numbered_list_item', numbered_list_item: { rich_text: parseInlineFormatting(line.replace(/^\\d+\\.\\s/, '').trim()) } }); }\n  else if (line.startsWith('> ')) { blocks.push({ type: 'quote', quote: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line === '---') { blocks.push({ type: 'divider', divider: {} }); }\n  else { blocks.push({ type: 'paragraph', paragraph: { rich_text: parseInlineFormatting(line) } }); }\n}\n\nif (inCodeFence && codeLines.length > 0) {\n  blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n}\n\n// Sanitize: split >2000 char content\nfor (const block of blocks) {\n  const btype = block.type;\n  if (block[btype] && block[btype].rich_text) {\n    const sanitized = [];\n    for (const rt of block[btype].rich_text) {\n      const content = rt.text ? rt.text.content || '' : '';\n      if (content.length <= 2000) { sanitized.push(rt); }\n      else { for (let ci = 0; ci < content.length; ci += 2000) {\n        const chunk = { text: { content: content.slice(ci, ci + 2000) } };\n        if (rt.text && rt.text.link) chunk.text.link = rt.text.link;\n        if (rt.annotations) chunk.annotations = Object.assign({}, rt.annotations);\n        sanitized.push(chunk);\n      }}\n    }\n    block[btype].rich_text = sanitized;\n  }\n}\n\n// Split into batches of 100 — output one item per batch\nconst batchSize = 100;\nconst items = [];\nfor (let i = 0; i < blocks.length; i += batchSize) {\n  const batch = blocks.slice(i, i + batchSize);\n  items.push({json: {\n    batchBody: JSON.stringify({ children: batch }),\n    pageId: pageId,\n    batchIndex: Math.floor(i / batchSize),\n    totalBlocks: blocks.length\n  }});\n}\n\nif (items.length === 0) {\n  items.push({json: { batchBody: JSON.stringify({ children: [] }), pageId: pageId, batchIndex: 0, totalBlocks: 0 }});\n}\n\nreturn items;\n",
         "options": {}
       },
-      "id": "b-parse-draft",
       "name": "B: Parse Draft Blocks",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1281,7 +1223,6 @@
         "jsonBody": "={{ $json.batchBody }}",
         "options": {}
       },
-      "id": "b-write-batch",
       "name": "B: Write Block Batch",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1297,10 +1238,9 @@
     },
     {
       "parameters": {
-        "jsCode": "// Build revision comment \u2014 run once, reference upstream for data\nconst parseData = $('B: Parse Draft Blocks').first().json;\nconst pageId = parseData.pageId;\nconst totalBlocks = parseData.totalBlocks;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst contentType = $('Parse Payload').first().json.contentType || '';\n\nreturn [{json: {\n  commentBody: JSON.stringify({\n    parent: { page_id: pageId },\n    rich_text: [{ text: { content: '\\u{1F504} Revision complete. ' + totalBlocks + ' blocks written. Running re-evaluation...' } }]\n  }),\n  pageId: pageId,\n  blocksWritten: totalBlocks,\n  cleanDraft: draftText,\n  contentType: contentType,\n  status: 'revised'\n}}];\n",
+        "jsCode": "// Build revision comment — run once, reference upstream for data\nconst parseData = $('B: Parse Draft Blocks').first().json;\nconst pageId = parseData.pageId;\nconst totalBlocks = parseData.totalBlocks;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst contentType = $('Parse Payload').first().json.contentType || '';\n\nreturn [{json: {\n  commentBody: JSON.stringify({\n    parent: { page_id: pageId },\n    rich_text: [{ text: { content: '\\u{1F504} Revision complete. ' + totalBlocks + ' blocks written. Running re-evaluation...' } }]\n  }),\n  pageId: pageId,\n  blocksWritten: totalBlocks,\n  cleanDraft: draftText,\n  contentType: contentType,\n  status: 'revised'\n}}];\n",
         "options": {}
       },
-      "id": "b-prepare-comment",
       "name": "B: Prepare Comment",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1329,7 +1269,6 @@
         "jsonBody": "={{ $json.commentBody }}",
         "options": {}
       },
-      "id": "b-post-comment",
       "name": "B: Post Comment",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1348,7 +1287,6 @@
         "jsCode": "// Final revision output for downstream\nconst data = $('B: Prepare Comment').first().json;\nreturn [{json: {\n  pageId: data.pageId,\n  blocksWritten: data.blocksWritten,\n  cleanDraft: data.cleanDraft,\n  contentType: data.contentType,\n  status: data.status\n}}];\n",
         "options": {}
       },
-      "id": "b-revision-output",
       "name": "B: Revision Output",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1374,7 +1312,6 @@
         },
         "options": {}
       },
-      "id": "c-fetch-page-blocks",
       "name": "C: Fetch Page Blocks",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -1405,7 +1342,6 @@
         },
         "options": {}
       },
-      "id": "b-fetch-draft-blocks",
       "name": "B: Fetch Draft Blocks",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
@@ -2092,7 +2028,7 @@
       "main": [
         [
           {
-            "node": "B: Prepare Deletes",
+            "node": "B: Fetch Writing Guide",
             "type": "main",
             "index": 0
           }
@@ -2109,13 +2045,14 @@
     "binaryMode": "separate"
   },
   "staticData": null,
-  "activeVersionId": "2a2e3923-dab3-4433-a753-e035f40b7bfc",
-  "versionCounter": 178,
-  "triggerCount": 1,
+  "meta": null,
+  "pinData": {},
+  "activeVersionId": "cec047d0-9e1a-4d6d-ab88-301d161e5353",
+  "versionCounter": 182,
   "activeVersion": {
-    "updatedAt": "2026-03-27T19:05:58.917Z",
-    "createdAt": "2026-03-27T19:05:58.917Z",
-    "versionId": "2a2e3923-dab3-4433-a753-e035f40b7bfc",
+    "updatedAt": "2026-03-27T19:15:26.512Z",
+    "createdAt": "2026-03-27T19:15:26.512Z",
+    "versionId": "cec047d0-9e1a-4d6d-ab88-301d161e5353",
     "workflowId": "dJlw6US8gj6Do4Wf",
     "nodes": [
       {
@@ -2302,6 +2239,7 @@
         "name": "Fetch Writing Guide",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2333,6 +2271,7 @@
         "name": "Fetch Blog Content Guide",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2364,6 +2303,7 @@
         "name": "Fetch Blog Style Analysis",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2371,7 +2311,7 @@
       },
       {
         "parameters": {
-          "jsCode": "\n// Convert Notion blocks to markdown and merge brand context\nfunction blocksToMd(blocks) {\n  if (!blocks || !Array.isArray(blocks)) return \"\";\n  return blocks.map(b => {\n    const type = b.type;\n    if (type === \"divider\") return \"---\";\n    const rt = b[type]?.rich_text || [];\n    const text = rt.map(r => {\n      let t = r.plain_text || \"\";\n      if (r.annotations?.bold) t = `**${t}**`;\n      if (r.annotations?.italic) t = `*${t}*`;\n      if (r.annotations?.code) t = \"`\" + t + \"`\";\n      if (r.href) t = `[${t}](${r.href})`;\n      return t;\n    }).join(\"\");\n    if (type === \"heading_1\") return `# ${text}`;\n    if (type === \"heading_2\") return `## ${text}`;\n    if (type === \"heading_3\") return `### ${text}`;\n    if (type === \"bulleted_list_item\") return `- ${text}`;\n    if (type === \"numbered_list_item\") return `1. ${text}`;\n    if (type === \"quote\") return `> ${text}`;\n    if (type === \"callout\") return `> ${text}`;\n    if (type === \"code\") return \"```\\n\" + text + \"\\n```\";\n    return text;\n  }).filter(l => l.trim() !== \"\").join(\"\\n\");\n}\n\n// Items arrive appended from Merge node \u2014 access by index\nconst items = $input.all();\nconst writingGuide = blocksToMd(items[0]?.json?.results || []);\nconst contentGuide = blocksToMd(items[1]?.json?.results || []);\nconst styleAnalysis = blocksToMd(items[2]?.json?.results || []);\nconst pageData = $('Parse Payload').first().json;\n\nreturn [{\n  json: {\n    ...pageData,\n    brandContext: {\n      writingGuide: writingGuide.substring(0, 8000),\n      contentGuide: contentGuide.substring(0, 8000),\n      styleAnalysis: styleAnalysis.substring(0, 4000)\n    }\n  }\n}];\n"
+          "jsCode": "\n// Convert Notion blocks to markdown and merge brand context\nfunction blocksToMd(blocks) {\n  if (!blocks || !Array.isArray(blocks)) return \"\";\n  return blocks.map(b => {\n    const type = b.type;\n    if (type === \"divider\") return \"---\";\n    const rt = b[type]?.rich_text || [];\n    const text = rt.map(r => {\n      let t = r.plain_text || \"\";\n      if (r.annotations?.bold) t = `**${t}**`;\n      if (r.annotations?.italic) t = `*${t}*`;\n      if (r.annotations?.code) t = \"`\" + t + \"`\";\n      if (r.href) t = `[${t}](${r.href})`;\n      return t;\n    }).join(\"\");\n    if (type === \"heading_1\") return `# ${text}`;\n    if (type === \"heading_2\") return `## ${text}`;\n    if (type === \"heading_3\") return `### ${text}`;\n    if (type === \"bulleted_list_item\") return `- ${text}`;\n    if (type === \"numbered_list_item\") return `1. ${text}`;\n    if (type === \"quote\") return `> ${text}`;\n    if (type === \"callout\") return `> ${text}`;\n    if (type === \"code\") return \"```\\n\" + text + \"\\n```\";\n    return text;\n  }).filter(l => l.trim() !== \"\").join(\"\\n\");\n}\n\n// Items arrive appended from Merge node — access by index\nconst items = $input.all();\nconst writingGuide = blocksToMd(items[0]?.json?.results || []);\nconst contentGuide = blocksToMd(items[1]?.json?.results || []);\nconst styleAnalysis = blocksToMd(items[2]?.json?.results || []);\nconst pageData = $('Parse Payload').first().json;\n\nreturn [{\n  json: {\n    ...pageData,\n    brandContext: {\n      writingGuide: writingGuide.substring(0, 8000),\n      contentGuide: contentGuide.substring(0, 8000),\n      styleAnalysis: styleAnalysis.substring(0, 4000)\n    }\n  }\n}];\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -2451,7 +2391,7 @@
       {
         "parameters": {
           "promptType": "define",
-          "text": "=Research this topic for a T-0 blog post:\n\nTopic: {{ $json.name }}\n{{ $json.pitch ? 'Pitch: ' + $json.pitch : '' }}\n{{ $json.url ? 'Source URL: ' + $json.url : 'No specific source URL provided \u2014 use Perplexity for general research.' }}\n\nFocus on: German market perspective, practical implications, counterarguments, statistics, and original sources. Return structured research with citations.",
+          "text": "=Research this topic for a T-0 blog post:\n\nTopic: {{ $json.name }}\n{{ $json.pitch ? 'Pitch: ' + $json.pitch : '' }}\n{{ $json.url ? 'Source URL: ' + $json.url : 'No specific source URL provided — use Perplexity for general research.' }}\n\nFocus on: German market perspective, practical implications, counterarguments, statistics, and original sources. Return structured research with citations.",
           "hasOutputParser": false,
           "options": {
             "systemMessage": "You are a research assistant for T-0, a German AI transformation agency. Given a topic, gather relevant information for a blog post targeting German Mittelstand decision-makers.\n\nUse Jina Reader to read specific URLs. Use Perplexity for broader web research. Focus on:\n1. German/DACH market perspective\n2. Practical implications (not theory)\n3. Counterarguments and risks\n4. Statistics and data points\n5. Primary sources over secondary reports\n\nReturn structured markdown with citations: ## Kernfakten, ## Deutsche Perspektive, ## Gegenargumente, ## Statistiken, ## Quellen."
@@ -2482,6 +2422,7 @@
         "name": "Research LLM",
         "credentials": {
           "openRouterApi": {
+            "id": "zxXiCGlCYD4JGQDr",
             "name": "Aarons OpenRouter account"
           }
         },
@@ -2510,6 +2451,7 @@
         "name": "Perplexity Research",
         "credentials": {
           "perplexityApi": {
+            "id": "O2sFk40YgiNpnnKu",
             "name": "Aarons Perplexity account"
           }
         },
@@ -2517,7 +2459,7 @@
       },
       {
         "parameters": {
-          "jsCode": "\n// Detect content type + assemble draft prompt\nconst ctx = $('Merge All Context').first().json;\nconst research = $('Research Agent').first().json;\nconst researchText = research.output || research.text || JSON.stringify(research);\n\n// Detect content type if not set\nlet contentType = ctx.contentType;\nif (!contentType) {\n  const combined = (ctx.name + \" \" + ctx.pitch + \" \" + researchText).toLowerCase();\n  if (combined.includes(\"case study\") || combined.includes(\"projekt\") || combined.includes(\"kundenbeispiel\")) {\n    contentType = \"Case Study\";\n  } else if (combined.includes(\"how to\") || combined.includes(\"anleitung\") || combined.includes(\"tutorial\") || combined.includes(\"guide\")) {\n    contentType = \"Resource\";\n  } else if (combined.includes(\"technisch\") || combined.includes(\"api\") || combined.includes(\"implementation\") || combined.includes(\"code\")) {\n    contentType = \"Technical\";\n  } else if (combined.includes(\"ank\u00fcndigung\") || combined.includes(\"announcement\") || combined.includes(\"launch\")) {\n    contentType = \"Announcement\";\n  } else {\n    contentType = \"Opinion\";\n  }\n}\n\nconst sp = ctx.styleParams || {};\nconst voice = sp.voice || {};\nconst structure = sp.structure || {};\nconst targetWords = structure.target_word_count?.[contentType.toLowerCase()] || 1500;\n\n// Assemble system prompt\nlet systemPrompt = ctx.draftPromptTemplate || \"\";\nsystemPrompt = systemPrompt\n  .replace(\"{brand_writing_guide_voice_section}\", ctx.brandContext?.writingGuide || \"\")\n  .replace(\"{blog_content_guide_template_for_{content_type}}\", ctx.brandContext?.contentGuide || \"\")\n  .replace(\"{blog_style_research_summary}\", (ctx.brandContext?.styleAnalysis || \"\").substring(0, 2000))\n  .replace(\"{opinion_strength}\", String(voice.opinion_strength || 0.8))\n  .replace(\"{personal_anecdote_required}\", String(voice.personal_anecdote_required ?? true))\n  .replace(\"{target_word_count}\", String(targetWords))\n  .replace(\"{opening_pattern}\", ctx.openingPattern || \"concrete_scenario\")\n  .replace(\"{closing_pattern}\", ctx.closingPattern || \"actionable_next_step\")\n  .replace(\"{banned_terms_list}\", \"leverage, game-changer, cutting-edge, revolution\u00e4r, bahnbrechend, Paradigmenwechsel\");\n\n// Assemble user prompt\nlet userPrompt = `## Thema: ${ctx.name}\\n\\n`;\nif (ctx.pitch) userPrompt += `## Pitch: ${ctx.pitch}\\n\\n`;\nuserPrompt += `## Content Type: ${contentType}\\n\\n`;\nuserPrompt += `## Ziel-Wortanzahl: ${targetWords}\\n\\n`;\nuserPrompt += `## \u00d6ffnungsmuster: ${ctx.openingPattern}\\n## Schlussmuster: ${ctx.closingPattern}\\n\\n`;\nuserPrompt += `## Recherche-Ergebnisse:\\n\\n${researchText}\\n\\n`;\nuserPrompt += `Schreibe jetzt den vollst\u00e4ndigen Blogpost auf Deutsch.`;\n\nreturn [{\n  json: {\n    ...ctx,\n    contentType,\n    researchText,\n    systemPrompt: systemPrompt.substring(0, 12000),\n    userPrompt: userPrompt.substring(0, 8000)\n  }\n}];\n"
+          "jsCode": "\n// Detect content type + assemble draft prompt\nconst ctx = $('Merge All Context').first().json;\nconst research = $('Research Agent').first().json;\nconst researchText = research.output || research.text || JSON.stringify(research);\n\n// Detect content type if not set\nlet contentType = ctx.contentType;\nif (!contentType) {\n  const combined = (ctx.name + \" \" + ctx.pitch + \" \" + researchText).toLowerCase();\n  if (combined.includes(\"case study\") || combined.includes(\"projekt\") || combined.includes(\"kundenbeispiel\")) {\n    contentType = \"Case Study\";\n  } else if (combined.includes(\"how to\") || combined.includes(\"anleitung\") || combined.includes(\"tutorial\") || combined.includes(\"guide\")) {\n    contentType = \"Resource\";\n  } else if (combined.includes(\"technisch\") || combined.includes(\"api\") || combined.includes(\"implementation\") || combined.includes(\"code\")) {\n    contentType = \"Technical\";\n  } else if (combined.includes(\"ankündigung\") || combined.includes(\"announcement\") || combined.includes(\"launch\")) {\n    contentType = \"Announcement\";\n  } else {\n    contentType = \"Opinion\";\n  }\n}\n\nconst sp = ctx.styleParams || {};\nconst voice = sp.voice || {};\nconst structure = sp.structure || {};\nconst targetWords = structure.target_word_count?.[contentType.toLowerCase()] || 1500;\n\n// Assemble system prompt\nlet systemPrompt = ctx.draftPromptTemplate || \"\";\nsystemPrompt = systemPrompt\n  .replace(\"{brand_writing_guide_voice_section}\", ctx.brandContext?.writingGuide || \"\")\n  .replace(\"{blog_content_guide_template_for_{content_type}}\", ctx.brandContext?.contentGuide || \"\")\n  .replace(\"{blog_style_research_summary}\", (ctx.brandContext?.styleAnalysis || \"\").substring(0, 2000))\n  .replace(\"{opinion_strength}\", String(voice.opinion_strength || 0.8))\n  .replace(\"{personal_anecdote_required}\", String(voice.personal_anecdote_required ?? true))\n  .replace(\"{target_word_count}\", String(targetWords))\n  .replace(\"{opening_pattern}\", ctx.openingPattern || \"concrete_scenario\")\n  .replace(\"{closing_pattern}\", ctx.closingPattern || \"actionable_next_step\")\n  .replace(\"{banned_terms_list}\", \"leverage, game-changer, cutting-edge, revolutionär, bahnbrechend, Paradigmenwechsel\");\n\n// Assemble user prompt\nlet userPrompt = `## Thema: ${ctx.name}\\n\\n`;\nif (ctx.pitch) userPrompt += `## Pitch: ${ctx.pitch}\\n\\n`;\nuserPrompt += `## Content Type: ${contentType}\\n\\n`;\nuserPrompt += `## Ziel-Wortanzahl: ${targetWords}\\n\\n`;\nuserPrompt += `## Öffnungsmuster: ${ctx.openingPattern}\\n## Schlussmuster: ${ctx.closingPattern}\\n\\n`;\nuserPrompt += `## Recherche-Ergebnisse:\\n\\n${researchText}\\n\\n`;\nuserPrompt += `Schreibe jetzt den vollständigen Blogpost auf Deutsch.`;\n\nreturn [{\n  json: {\n    ...ctx,\n    contentType,\n    researchText,\n    systemPrompt: systemPrompt.substring(0, 12000),\n    userPrompt: userPrompt.substring(0, 8000)\n  }\n}];\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -2562,6 +2504,7 @@
         "name": "Draft LLM",
         "credentials": {
           "openRouterApi": {
+            "id": "zxXiCGlCYD4JGQDr",
             "name": "Aarons OpenRouter account"
           }
         },
@@ -2609,6 +2552,7 @@
         "name": "Update Notion Properties",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2643,6 +2587,7 @@
         "name": "Append Draft Blocks",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2650,7 +2595,7 @@
       },
       {
         "parameters": {
-          "jsCode": "\n// Build evaluation prompt\nconst draft = $('Parse Draft & Build Blocks').first().json;\nconst cleanDraft = draft.cleanDraft;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator f\u00fcr T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verst\u00e4ndlich? Keine unerkl\u00e4rten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? H\u00e4lt Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser wei\u00df was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{\n  json: {\n    pageId: draft.pageId,\n    contentType: draft.contentType,\n    cleanDraft,\n    evalSystemPrompt,\n    evalUserPrompt: `Bewerte diesen Blogpost-Entwurf:\\n\\n${cleanDraft.substring(0, 10000)}`\n  }\n}];\n"
+          "jsCode": "\n// Build evaluation prompt\nconst draft = $('Parse Draft & Build Blocks').first().json;\nconst cleanDraft = draft.cleanDraft;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator für T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verständlich? Keine unerklärten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? Hält Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser weiß was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{\n  json: {\n    pageId: draft.pageId,\n    contentType: draft.contentType,\n    cleanDraft,\n    evalSystemPrompt,\n    evalUserPrompt: `Bewerte diesen Blogpost-Entwurf:\\n\\n${cleanDraft.substring(0, 10000)}`\n  }\n}];\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -2695,6 +2640,7 @@
         "name": "Eval LLM",
         "credentials": {
           "openRouterApi": {
+            "id": "zxXiCGlCYD4JGQDr",
             "name": "Aarons OpenRouter account"
           }
         },
@@ -2715,7 +2661,7 @@
       },
       {
         "parameters": {
-          "jsCode": "\n// Apply evaluation gate rules and determine status\nlet evalData;\ntry {\n  evalData = $('Build Evaluation Prompt').first().json;\n} catch(e) {\n  evalData = $('B: Build Re-Eval Prompt').first().json;\n}\nconst evalResult = $input.first().json;\n\n// Extract scores from agent output (structured output parser returns an object)\nlet scores;\nif (typeof evalResult.output === 'object' && evalResult.output !== null) {\n  scores = evalResult.output;\n} else if (typeof evalResult.output === 'string') {\n  try { scores = JSON.parse(evalResult.output); } catch(e) {\n    const jsonMatch = evalResult.output.match(/\\{[\\s\\S]*\\}/);\n    scores = jsonMatch ? JSON.parse(jsonMatch[0]) : {};\n  }\n} else {\n  scores = evalResult;\n}\n\nconst clarity = scores.clarity?.score || 0;\nconst structure = scores.structure?.score || 0;\nconst accuracy = scores.accuracy?.score || 0;\nconst credibility = scores.credibility?.score || 0;\nconst engagement = scores.engagement?.score || 0;\nconst voice = scores.voice?.score || 0;\nconst actionability = scores.actionability?.score || 0;\n\nconst composite = clarity*1 + structure*1 + accuracy*1.5 + credibility*1.5 + engagement*1 + voice*1 + actionability*1;\n\nlet qualityTier = \"Poor\";\nif (composite >= 34) qualityTier = \"Excellent\";\nelse if (composite >= 28) qualityTier = \"Good\";\nelse if (composite >= 22) qualityTier = \"Acceptable\";\nelse if (composite >= 16) qualityTier = \"Below Standard\";\n\n// Gate rules\nlet newStatus = \"Draft\";\nlet blocked = false;\nlet blockReason = \"\";\n\nif (voice < 4) {\n  blocked = true;\n  blockReason = \"Voice score below minimum threshold (4). Constitutional principle: T-0 Voice ist nicht verhandelbar.\";\n} else if (clarity < 3 || structure < 3 || accuracy < 3 || credibility < 3 || engagement < 3 || actionability < 3) {\n  blocked = true;\n  const low = [];\n  if (clarity < 3) low.push(\"Clarity\");\n  if (structure < 3) low.push(\"Structure\");\n  if (accuracy < 3) low.push(\"Accuracy\");\n  if (credibility < 3) low.push(\"Credibility\");\n  if (engagement < 3) low.push(\"Engagement\");\n  if (actionability < 3) low.push(\"Actionability\");\n  blockReason = `Dimensions below minimum (3): ${low.join(\", \")}`;\n}\n\nif (!blocked && composite >= 28) {\n  newStatus = \"Pre Review\";\n}\n\nconst evalNotes = `Top: ${scores.top_strength || \"N/A\"} | Weakness: ${scores.primary_weakness || \"N/A\"} | Voice: ${scores.voice_assessment || \"N/A\"}`;\n\nconst commentText = blocked\n  ? `\u26a0\ufe0f Below threshold. ${blockReason}. Composite: ${composite.toFixed(1)}/40 (${qualityTier})`\n  : newStatus === \"Pre Review\"\n    ? `\u2705 Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Ready for review.`\n    : `\ud83d\udcdd Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Below \"Good\" threshold (28). Consider revising.`;\n\nreturn [{\n  json: {\n    pageId: evalData.pageId,\n    scores: { clarity, structure, accuracy, credibility, engagement, voice, actionability },\n    composite: Math.round(composite * 10) / 10,\n    qualityTier,\n    newStatus,\n    evalNotes,\n    commentText,\n    blocked,\n    blockReason,\n    perDimensionFeedback: scores\n  }\n}];\n"
+          "jsCode": "\n// Apply evaluation gate rules and determine status\nlet evalData;\ntry {\n  evalData = $('Build Evaluation Prompt').first().json;\n} catch(e) {\n  evalData = $('B: Build Re-Eval Prompt').first().json;\n}\nconst evalResult = $input.first().json;\n\n// Extract scores from agent output (structured output parser returns an object)\nlet scores;\nif (typeof evalResult.output === 'object' && evalResult.output !== null) {\n  scores = evalResult.output;\n} else if (typeof evalResult.output === 'string') {\n  try { scores = JSON.parse(evalResult.output); } catch(e) {\n    const jsonMatch = evalResult.output.match(/\\{[\\s\\S]*\\}/);\n    scores = jsonMatch ? JSON.parse(jsonMatch[0]) : {};\n  }\n} else {\n  scores = evalResult;\n}\n\nconst clarity = scores.clarity?.score || 0;\nconst structure = scores.structure?.score || 0;\nconst accuracy = scores.accuracy?.score || 0;\nconst credibility = scores.credibility?.score || 0;\nconst engagement = scores.engagement?.score || 0;\nconst voice = scores.voice?.score || 0;\nconst actionability = scores.actionability?.score || 0;\n\nconst composite = clarity*1 + structure*1 + accuracy*1.5 + credibility*1.5 + engagement*1 + voice*1 + actionability*1;\n\nlet qualityTier = \"Poor\";\nif (composite >= 34) qualityTier = \"Excellent\";\nelse if (composite >= 28) qualityTier = \"Good\";\nelse if (composite >= 22) qualityTier = \"Acceptable\";\nelse if (composite >= 16) qualityTier = \"Below Standard\";\n\n// Gate rules\nlet newStatus = \"Draft\";\nlet blocked = false;\nlet blockReason = \"\";\n\nif (voice < 4) {\n  blocked = true;\n  blockReason = \"Voice score below minimum threshold (4). Constitutional principle: T-0 Voice ist nicht verhandelbar.\";\n} else if (clarity < 3 || structure < 3 || accuracy < 3 || credibility < 3 || engagement < 3 || actionability < 3) {\n  blocked = true;\n  const low = [];\n  if (clarity < 3) low.push(\"Clarity\");\n  if (structure < 3) low.push(\"Structure\");\n  if (accuracy < 3) low.push(\"Accuracy\");\n  if (credibility < 3) low.push(\"Credibility\");\n  if (engagement < 3) low.push(\"Engagement\");\n  if (actionability < 3) low.push(\"Actionability\");\n  blockReason = `Dimensions below minimum (3): ${low.join(\", \")}`;\n}\n\nif (!blocked && composite >= 28) {\n  newStatus = \"Pre Review\";\n}\n\nconst evalNotes = `Top: ${scores.top_strength || \"N/A\"} | Weakness: ${scores.primary_weakness || \"N/A\"} | Voice: ${scores.voice_assessment || \"N/A\"}`;\n\nconst commentText = blocked\n  ? `⚠️ Below threshold. ${blockReason}. Composite: ${composite.toFixed(1)}/40 (${qualityTier})`\n  : newStatus === \"Pre Review\"\n    ? `✅ Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Ready for review.`\n    : `📝 Draft evaluated: ${composite.toFixed(1)}/40 (${qualityTier}). Below \"Good\" threshold (28). Consider revising.`;\n\nreturn [{\n  json: {\n    pageId: evalData.pageId,\n    scores: { clarity, structure, accuracy, credibility, engagement, voice, actionability },\n    composite: Math.round(composite * 10) / 10,\n    qualityTier,\n    newStatus,\n    evalNotes,\n    commentText,\n    blocked,\n    blockReason,\n    perDimensionFeedback: scores\n  }\n}];\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -2755,6 +2701,7 @@
         "name": "Write Scores to Notion",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2789,6 +2736,7 @@
         "name": "Post Evaluation Comment",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2839,7 +2787,7 @@
       },
       {
         "parameters": {
-          "jsCode": "\n// Deduplication guard: prevent re-trigger when pipeline changes status\n// Pipeline sets: Draft (Branch A/B output), Published (Branch C output)\n// Block these + manual-only statuses that should not trigger the pipeline\nconst status = $json.status || \"\";\nconst blockedStatuses = [\"Draft\", \"Pre Review\", \"In Review\", \"Published\"];\n\nif (blockedStatuses.includes(status)) {\n  // Pipeline-set or non-triggering status \u2014 stop execution\n  return;\n}\n\n// Valid triggers: Idea, Backlog (Branch A), In Revision (Branch B), Publishable (Branch C)\nreturn $input.item;\n",
+          "jsCode": "\n// Deduplication guard: prevent re-trigger when pipeline changes status\n// Pipeline sets: Draft (Branch A/B output), Published (Branch C output)\n// Block these + manual-only statuses that should not trigger the pipeline\nconst status = $json.status || \"\";\nconst blockedStatuses = [\"Draft\", \"Pre Review\", \"In Review\", \"Published\"];\n\nif (blockedStatuses.includes(status)) {\n  // Pipeline-set or non-triggering status — stop execution\n  return;\n}\n\n// Valid triggers: Idea, Backlog (Branch A), In Revision (Branch B), Publishable (Branch C)\nreturn $input.item;\n",
           "mode": "runOnceForEachItem"
         },
         "type": "n8n-nodes-base.code",
@@ -2904,6 +2852,7 @@
         "name": "Post Error Comment",
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -2936,6 +2885,7 @@
         },
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -2997,6 +2947,7 @@
         },
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -3026,11 +2977,12 @@
           },
           "sendBody": true,
           "specifyBody": "json",
-          "jsonBody": "={{ JSON.stringify({ parent: { page_id: $(\"C: Parse Ghost Response\").first().json.pageId }, rich_text: [{ text: { content: \"\u2705 Published to Ghost (\" + $(\"C: Parse Ghost Response\").first().json.ghostStatus + \"): \" + $(\"C: Parse Ghost Response\").first().json.ghostUrl } }] }) }}",
+          "jsonBody": "={{ JSON.stringify({ parent: { page_id: $(\"C: Parse Ghost Response\").first().json.pageId }, rich_text: [{ text: { content: \"✅ Published to Ghost (\" + $(\"C: Parse Ghost Response\").first().json.ghostStatus + \"): \" + $(\"C: Parse Ghost Response\").first().json.ghostUrl } }] }) }}",
           "options": {}
         },
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -3062,6 +3014,7 @@
         },
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -3093,6 +3046,7 @@
         },
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -3107,7 +3061,7 @@
           1100
         ],
         "parameters": {
-          "jsCode": "\n// Assemble revision context: feedback + current draft + brand context\nconst parsePayload = $('Parse Payload').first().json;\nconst commentsResp = $('B: Fetch Feedback').first().json;\nconst blocksResp = $('B: Fetch Current Draft').first().json;\nconst brandResp = $('B: Fetch Writing Guide').first().json;\n\n// Extract feedback comments (filter to human comments, skip bot/pipeline comments)\nconst comments = (commentsResp.results || [])\n  .filter(c => {\n    const text = (c.rich_text || []).map(t => t.plain_text).join('');\n    // Skip pipeline-generated comments\n    if (text.startsWith('\u2705') || text.startsWith('\ud83d\udcca') || text.startsWith('\ud83d\udd04') || text.startsWith('\u274c')) return false;\n    return true;\n  })\n  .map(c => (c.rich_text || []).map(t => t.plain_text).join(''))\n  .filter(t => t.length > 0);\n\nconst feedbackText = comments.length > 0\n  ? comments.join('\\n\\n---\\n\\n')\n  : 'No specific feedback provided. Please improve the draft based on the evaluation scores.';\n\n// Convert current draft blocks to markdown for context\nconst blocks = blocksResp.results || [];\nlet draftText = '';\nfor (const block of blocks) {\n  const type = block.type;\n  if (type === 'paragraph') {\n    draftText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_1') {\n    draftText += '# ' + (block.heading_1.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_2') {\n    draftText += '## ' + (block.heading_2.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_3') {\n    draftText += '### ' + (block.heading_3.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'bulleted_list_item') {\n    draftText += '- ' + (block.bulleted_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'numbered_list_item') {\n    draftText += '1. ' + (block.numbered_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'quote') {\n    draftText += '> ' + (block.quote.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'divider') {\n    draftText += '---\\n\\n';\n  }\n}\n\n// Extract brand context as text\nconst brandBlocks = brandResp.results || [];\nlet brandText = '';\nfor (const block of brandBlocks) {\n  if (block.type === 'paragraph') {\n    brandText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  }\n}\n\nreturn [{json: {\n  pageId: parsePayload.pageId,\n  name: parsePayload.name,\n  pitch: parsePayload.pitch,\n  feedbackText: feedbackText,\n  currentDraft: draftText.trim(),\n  brandContext: brandText.trim(),\n  commentCount: comments.length,\n  blockIds: blocks.map(b => b.id)  // For archiving old blocks\n}}];\n"
+          "jsCode": "\n// Assemble revision context: feedback + current draft + brand context\nconst parsePayload = $('Parse Payload').first().json;\nconst commentsResp = $('B: Fetch Feedback').first().json;\nconst blocksResp = $('B: Fetch Draft Blocks').first().json;\nconst brandResp = $('B: Fetch Writing Guide').first().json;\n\n// Extract feedback comments (filter to human comments, skip bot/pipeline comments)\nconst comments = (commentsResp.results || [])\n  .filter(c => {\n    const text = (c.rich_text || []).map(t => t.plain_text).join('');\n    // Skip pipeline-generated comments\n    if (text.startsWith('✅') || text.startsWith('📊') || text.startsWith('🔄') || text.startsWith('❌')) return false;\n    return true;\n  })\n  .map(c => (c.rich_text || []).map(t => t.plain_text).join(''))\n  .filter(t => t.length > 0);\n\nconst feedbackText = comments.length > 0\n  ? comments.join('\\n\\n---\\n\\n')\n  : 'No specific feedback provided. Please improve the draft based on the evaluation scores.';\n\n// Convert current draft blocks to markdown for context\nconst blocks = blocksResp.results || [];\nlet draftText = '';\nfor (const block of blocks) {\n  const type = block.type;\n  if (type === 'paragraph') {\n    draftText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_1') {\n    draftText += '# ' + (block.heading_1.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_2') {\n    draftText += '## ' + (block.heading_2.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'heading_3') {\n    draftText += '### ' + (block.heading_3.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'bulleted_list_item') {\n    draftText += '- ' + (block.bulleted_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'numbered_list_item') {\n    draftText += '1. ' + (block.numbered_list_item.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  } else if (type === 'quote') {\n    draftText += '> ' + (block.quote.rich_text || []).map(t => t.plain_text).join('') + '\\n\\n';\n  } else if (type === 'divider') {\n    draftText += '---\\n\\n';\n  }\n}\n\n// Extract brand context as text\nconst brandBlocks = brandResp.results || [];\nlet brandText = '';\nfor (const block of brandBlocks) {\n  if (block.type === 'paragraph') {\n    brandText += (block.paragraph.rich_text || []).map(t => t.plain_text).join('') + '\\n';\n  }\n}\n\nreturn [{json: {\n  pageId: parsePayload.pageId,\n  name: parsePayload.name,\n  pitch: parsePayload.pitch,\n  feedbackText: feedbackText,\n  currentDraft: draftText.trim(),\n  brandContext: brandText.trim(),\n  commentCount: comments.length,\n  blockIds: blocks.map(b => b.id)  // For archiving old blocks\n}}];\n"
         }
       },
       {
@@ -3120,7 +3074,7 @@
           1100
         ],
         "parameters": {
-          "jsCode": "\n// Archive old blocks into a toggle and prepare for redraft\n// This node outputs the data needed for the HTTP calls that follow\nconst input = $input.first().json;\n\n// We'll delete old blocks and create a toggle with archived content\n// Then the draft agent (reusing Branch A) will append new content\n\n// Count existing revisions by looking at toggle blocks named \"Previous Version\"\n// For now, just mark this as revision v2+\n\nreturn [{json: {\n  pageId: input.pageId,\n  name: input.name,\n  pitch: input.pitch,\n  feedbackText: input.feedbackText,\n  currentDraft: input.currentDraft,\n  brandContext: input.brandContext,\n  blockIds: input.blockIds,\n  // System prompt for revision\n  systemPrompt: `You are revising a blog post draft for T-0, a German AI consultancy.\n\n## Brand Voice Context\n${input.brandContext}\n\n## Current Draft\n${input.currentDraft}\n\n## Editor Feedback\n${input.feedbackText}\n\n## Instructions\n1. Address ALL feedback points explicitly\n2. Maintain the same structure unless feedback specifically requests changes\n3. Keep the T-0 voice: confident but not arrogant, practical, German market focus\n4. Output the revised draft in markdown format\n5. Include a <!-- META revision:true feedback_points_addressed:N --> comment at the end\n\nWrite the complete revised article in German. Do not truncate or summarize \u2014 output the full revised draft.`\n}}];\n"
+          "jsCode": "\n// Archive old blocks into a toggle and prepare for redraft\n// This node outputs the data needed for the HTTP calls that follow\nconst input = $input.first().json;\n\n// We'll delete old blocks and create a toggle with archived content\n// Then the draft agent (reusing Branch A) will append new content\n\n// Count existing revisions by looking at toggle blocks named \"Previous Version\"\n// For now, just mark this as revision v2+\n\nreturn [{json: {\n  pageId: input.pageId,\n  name: input.name,\n  pitch: input.pitch,\n  feedbackText: input.feedbackText,\n  currentDraft: input.currentDraft,\n  brandContext: input.brandContext,\n  blockIds: input.blockIds,\n  // System prompt for revision\n  systemPrompt: `You are revising a blog post draft for T-0, a German AI consultancy.\n\n## Brand Voice Context\n${input.brandContext}\n\n## Current Draft\n${input.currentDraft}\n\n## Editor Feedback\n${input.feedbackText}\n\n## Instructions\n1. Address ALL feedback points explicitly\n2. Maintain the same structure unless feedback specifically requests changes\n3. Keep the T-0 voice: confident but not arrogant, practical, German market focus\n4. Output the revised draft in markdown format\n5. Include a <!-- META revision:true feedback_points_addressed:N --> comment at the end\n\nWrite the complete revised article in German. Do not truncate or summarize — output the full revised draft.`\n}}];\n"
         }
       },
       {
@@ -3141,6 +3095,7 @@
         },
         "credentials": {
           "openRouterApi": {
+            "id": "zxXiCGlCYD4JGQDr",
             "name": "Aarons OpenRouter account"
           }
         }
@@ -3173,7 +3128,7 @@
           1100
         ],
         "parameters": {
-          "jsCode": "\n// Build evaluation prompt for re-evaluation after revision\nconst input = $input.first().json;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator f\u00fcr T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verst\u00e4ndlich? Keine unerkl\u00e4rten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? H\u00e4lt Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser wei\u00df was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{json: {\n  pageId: input.pageId,\n  contentType: input.contentType || '',\n  cleanDraft: input.cleanDraft || '',\n  evalSystemPrompt,\n  evalUserPrompt: `Bewerte diesen \u00fcberarbeiteten Blogpost-Entwurf:\\n\\n${(input.cleanDraft || '').substring(0, 10000)}`\n}}];\n"
+          "jsCode": "\n// Build evaluation prompt for re-evaluation after revision\nconst input = $input.first().json;\n\nconst evalSystemPrompt = `Du bist ein strenger Content-Evaluator für T-0. Bewerte den folgenden Blogpost-Entwurf.\n\nBewerte jede Dimension von 1 bis 5:\n1. Clarity (1.0x) - Verständlich? Keine unerklärten Fachbegriffe?\n2. Structure (1.0x) - Progressive disclosure? Scannbar?\n3. Accuracy (1.5x) - Fakten korrekt? Quellen zitiert?\n4. Credibility (1.5x) - Show the work? Earned confidence?\n5. Engagement (1.0x) - Starker Einstieg? Hält Aufmerksamkeit?\n6. Voice (1.0x) - Klingt wie T-0? Starke Meinungen? Du-Form?\n7. Actionability (1.0x) - Leser weiß was zu tun ist?\n\nComposite = Clarity*1 + Structure*1 + Accuracy*1.5 + Credibility*1.5 + Engagement*1 + Voice*1 + Actionability*1 (max 40)\n\nTiers: Excellent (34-40), Good (28-33), Acceptable (22-27), Below Standard (16-21), Poor (<16)\n\nGATE: Voice < 4 = BLOCKED. Any dimension < 3 = BLOCKED.\n\nAntworte NUR als JSON.`;\n\nreturn [{json: {\n  pageId: input.pageId,\n  contentType: input.contentType || '',\n  cleanDraft: input.cleanDraft || '',\n  evalSystemPrompt,\n  evalUserPrompt: `Bewerte diesen überarbeiteten Blogpost-Entwurf:\\n\\n${(input.cleanDraft || '').substring(0, 10000)}`\n}}];\n"
         }
       },
       {
@@ -3227,7 +3182,8 @@
         ],
         "credentials": {
           "ghostAdminApi": {
-            "name": "Ghost Admin API \u2014 T-0 (t-0.co)"
+            "id": "rrFwzLh7XYdnnN8E",
+            "name": "Ghost Admin API — T-0 (t-0.co)"
           }
         }
       },
@@ -3293,6 +3249,7 @@
         ],
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         },
@@ -3342,6 +3299,7 @@
         ],
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -3362,7 +3320,7 @@
       },
       {
         "parameters": {
-          "jsCode": "\nconst input = $('B: Pass Delete Data').first().json;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst pageId = input.pageId;\n\n// Convert markdown to Notion blocks with inline formatting\nfunction parseInlineFormatting(text) {\n  const segments = [];\n  const pattern = /(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|`(.+?)`|\\[(.+?)\\]\\((.+?)\\))/g;\n  let lastIndex = 0;\n  let match;\n  while ((match = pattern.exec(text)) !== null) {\n    if (match.index > lastIndex) {\n      segments.push({ text: { content: text.slice(lastIndex, match.index) } });\n    }\n    if (match[2]) { segments.push({ text: { content: match[2] }, annotations: { bold: true } }); }\n    else if (match[3]) { segments.push({ text: { content: match[3] }, annotations: { italic: true } }); }\n    else if (match[4]) { segments.push({ text: { content: match[4] }, annotations: { code: true } }); }\n    else if (match[5] && match[6]) { segments.push({ text: { content: match[5], link: { url: match[6] } } }); }\n    lastIndex = match.index + match[0].length;\n  }\n  if (lastIndex < text.length) { segments.push({ text: { content: text.slice(lastIndex) } }); }\n  if (segments.length === 0) { segments.push({ text: { content: text } }); }\n  return segments;\n}\n\nconst lines = draftText.split('\\n');\nconst blocks = [];\nlet inCodeFence = false;\nlet codeLines = [];\nlet codeLang = '';\n\nfor (let line of lines) {\n  if (line.trim().startsWith('```')) {\n    if (inCodeFence) {\n      blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n      inCodeFence = false; codeLines = []; codeLang = '';\n      continue;\n    } else { inCodeFence = true; codeLang = line.trim().slice(3).trim(); continue; }\n  }\n  if (inCodeFence) { codeLines.push(line); continue; }\n  line = line.trim();\n  if (!line) continue;\n  if (line.startsWith('<!--') && line.includes('META')) continue;\n\n  if (line.startsWith('# ')) { blocks.push({ type: 'heading_1', heading_1: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.startsWith('## ')) { blocks.push({ type: 'heading_2', heading_2: { rich_text: parseInlineFormatting(line.slice(3).trim()) } }); }\n  else if (line.startsWith('### ')) { blocks.push({ type: 'heading_3', heading_3: { rich_text: parseInlineFormatting(line.slice(4).trim()) } }); }\n  else if (line.startsWith('- ') || line.startsWith('* ')) { blocks.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.match(/^\\d+\\.\\s/)) { blocks.push({ type: 'numbered_list_item', numbered_list_item: { rich_text: parseInlineFormatting(line.replace(/^\\d+\\.\\s/, '').trim()) } }); }\n  else if (line.startsWith('> ')) { blocks.push({ type: 'quote', quote: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line === '---') { blocks.push({ type: 'divider', divider: {} }); }\n  else { blocks.push({ type: 'paragraph', paragraph: { rich_text: parseInlineFormatting(line) } }); }\n}\n\nif (inCodeFence && codeLines.length > 0) {\n  blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n}\n\n// Sanitize: split >2000 char content\nfor (const block of blocks) {\n  const btype = block.type;\n  if (block[btype] && block[btype].rich_text) {\n    const sanitized = [];\n    for (const rt of block[btype].rich_text) {\n      const content = rt.text ? rt.text.content || '' : '';\n      if (content.length <= 2000) { sanitized.push(rt); }\n      else { for (let ci = 0; ci < content.length; ci += 2000) {\n        const chunk = { text: { content: content.slice(ci, ci + 2000) } };\n        if (rt.text && rt.text.link) chunk.text.link = rt.text.link;\n        if (rt.annotations) chunk.annotations = Object.assign({}, rt.annotations);\n        sanitized.push(chunk);\n      }}\n    }\n    block[btype].rich_text = sanitized;\n  }\n}\n\n// Split into batches of 100 \u2014 output one item per batch\nconst batchSize = 100;\nconst items = [];\nfor (let i = 0; i < blocks.length; i += batchSize) {\n  const batch = blocks.slice(i, i + batchSize);\n  items.push({json: {\n    batchBody: JSON.stringify({ children: batch }),\n    pageId: pageId,\n    batchIndex: Math.floor(i / batchSize),\n    totalBlocks: blocks.length\n  }});\n}\n\nif (items.length === 0) {\n  items.push({json: { batchBody: JSON.stringify({ children: [] }), pageId: pageId, batchIndex: 0, totalBlocks: 0 }});\n}\n\nreturn items;\n",
+          "jsCode": "\nconst input = $('B: Pass Delete Data').first().json;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst pageId = input.pageId;\n\n// Convert markdown to Notion blocks with inline formatting\nfunction parseInlineFormatting(text) {\n  const segments = [];\n  const pattern = /(\\*\\*(.+?)\\*\\*|\\*(.+?)\\*|`(.+?)`|\\[(.+?)\\]\\((.+?)\\))/g;\n  let lastIndex = 0;\n  let match;\n  while ((match = pattern.exec(text)) !== null) {\n    if (match.index > lastIndex) {\n      segments.push({ text: { content: text.slice(lastIndex, match.index) } });\n    }\n    if (match[2]) { segments.push({ text: { content: match[2] }, annotations: { bold: true } }); }\n    else if (match[3]) { segments.push({ text: { content: match[3] }, annotations: { italic: true } }); }\n    else if (match[4]) { segments.push({ text: { content: match[4] }, annotations: { code: true } }); }\n    else if (match[5] && match[6]) { segments.push({ text: { content: match[5], link: { url: match[6] } } }); }\n    lastIndex = match.index + match[0].length;\n  }\n  if (lastIndex < text.length) { segments.push({ text: { content: text.slice(lastIndex) } }); }\n  if (segments.length === 0) { segments.push({ text: { content: text } }); }\n  return segments;\n}\n\nconst lines = draftText.split('\\n');\nconst blocks = [];\nlet inCodeFence = false;\nlet codeLines = [];\nlet codeLang = '';\n\nfor (let line of lines) {\n  if (line.trim().startsWith('```')) {\n    if (inCodeFence) {\n      blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n      inCodeFence = false; codeLines = []; codeLang = '';\n      continue;\n    } else { inCodeFence = true; codeLang = line.trim().slice(3).trim(); continue; }\n  }\n  if (inCodeFence) { codeLines.push(line); continue; }\n  line = line.trim();\n  if (!line) continue;\n  if (line.startsWith('<!--') && line.includes('META')) continue;\n\n  if (line.startsWith('# ')) { blocks.push({ type: 'heading_1', heading_1: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.startsWith('## ')) { blocks.push({ type: 'heading_2', heading_2: { rich_text: parseInlineFormatting(line.slice(3).trim()) } }); }\n  else if (line.startsWith('### ')) { blocks.push({ type: 'heading_3', heading_3: { rich_text: parseInlineFormatting(line.slice(4).trim()) } }); }\n  else if (line.startsWith('- ') || line.startsWith('* ')) { blocks.push({ type: 'bulleted_list_item', bulleted_list_item: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line.match(/^\\d+\\.\\s/)) { blocks.push({ type: 'numbered_list_item', numbered_list_item: { rich_text: parseInlineFormatting(line.replace(/^\\d+\\.\\s/, '').trim()) } }); }\n  else if (line.startsWith('> ')) { blocks.push({ type: 'quote', quote: { rich_text: parseInlineFormatting(line.slice(2).trim()) } }); }\n  else if (line === '---') { blocks.push({ type: 'divider', divider: {} }); }\n  else { blocks.push({ type: 'paragraph', paragraph: { rich_text: parseInlineFormatting(line) } }); }\n}\n\nif (inCodeFence && codeLines.length > 0) {\n  blocks.push({ type: 'code', code: { rich_text: [{ text: { content: codeLines.join('\\n') } }], language: codeLang || 'plain text' } });\n}\n\n// Sanitize: split >2000 char content\nfor (const block of blocks) {\n  const btype = block.type;\n  if (block[btype] && block[btype].rich_text) {\n    const sanitized = [];\n    for (const rt of block[btype].rich_text) {\n      const content = rt.text ? rt.text.content || '' : '';\n      if (content.length <= 2000) { sanitized.push(rt); }\n      else { for (let ci = 0; ci < content.length; ci += 2000) {\n        const chunk = { text: { content: content.slice(ci, ci + 2000) } };\n        if (rt.text && rt.text.link) chunk.text.link = rt.text.link;\n        if (rt.annotations) chunk.annotations = Object.assign({}, rt.annotations);\n        sanitized.push(chunk);\n      }}\n    }\n    block[btype].rich_text = sanitized;\n  }\n}\n\n// Split into batches of 100 — output one item per batch\nconst batchSize = 100;\nconst items = [];\nfor (let i = 0; i < blocks.length; i += batchSize) {\n  const batch = blocks.slice(i, i + batchSize);\n  items.push({json: {\n    batchBody: JSON.stringify({ children: batch }),\n    pageId: pageId,\n    batchIndex: Math.floor(i / batchSize),\n    totalBlocks: blocks.length\n  }});\n}\n\nif (items.length === 0) {\n  items.push({json: { batchBody: JSON.stringify({ children: [] }), pageId: pageId, batchIndex: 0, totalBlocks: 0 }});\n}\n\nreturn items;\n",
           "options": {}
         },
         "id": "b-parse-draft",
@@ -3404,13 +3362,14 @@
         ],
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
       },
       {
         "parameters": {
-          "jsCode": "// Build revision comment \u2014 run once, reference upstream for data\nconst parseData = $('B: Parse Draft Blocks').first().json;\nconst pageId = parseData.pageId;\nconst totalBlocks = parseData.totalBlocks;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst contentType = $('Parse Payload').first().json.contentType || '';\n\nreturn [{json: {\n  commentBody: JSON.stringify({\n    parent: { page_id: pageId },\n    rich_text: [{ text: { content: '\\u{1F504} Revision complete. ' + totalBlocks + ' blocks written. Running re-evaluation...' } }]\n  }),\n  pageId: pageId,\n  blocksWritten: totalBlocks,\n  cleanDraft: draftText,\n  contentType: contentType,\n  status: 'revised'\n}}];\n",
+          "jsCode": "// Build revision comment — run once, reference upstream for data\nconst parseData = $('B: Parse Draft Blocks').first().json;\nconst pageId = parseData.pageId;\nconst totalBlocks = parseData.totalBlocks;\nconst draft = $('B: Generate Revised Draft').first().json;\nconst draftText = draft.output || draft.text || '';\nconst contentType = $('Parse Payload').first().json.contentType || '';\n\nreturn [{json: {\n  commentBody: JSON.stringify({\n    parent: { page_id: pageId },\n    rich_text: [{ text: { content: '\\u{1F504} Revision complete. ' + totalBlocks + ' blocks written. Running re-evaluation...' } }]\n  }),\n  pageId: pageId,\n  blocksWritten: totalBlocks,\n  cleanDraft: draftText,\n  contentType: contentType,\n  status: 'revised'\n}}];\n",
           "options": {}
         },
         "id": "b-prepare-comment",
@@ -3452,6 +3411,7 @@
         ],
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -3497,6 +3457,7 @@
         ],
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -3528,6 +3489,7 @@
         ],
         "credentials": {
           "notionApi": {
+            "id": "0xiiQaGDhyAvgSeB",
             "name": "Aarons Notion account - T-0 Scope"
           }
         }
@@ -4205,7 +4167,7 @@
         "main": [
           [
             {
-              "node": "B: Prepare Deletes",
+              "node": "B: Fetch Writing Guide",
               "type": "main",
               "index": 0
             }
@@ -4219,10 +4181,10 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-27T19:05:59.237Z",
-        "id": 526,
+        "createdAt": "2026-03-27T19:15:26.880Z",
+        "id": 528,
         "workflowId": "dJlw6US8gj6Do4Wf",
-        "versionId": "2a2e3923-dab3-4433-a753-e035f40b7bfc",
+        "versionId": "cec047d0-9e1a-4d6d-ab88-301d161e5353",
         "event": "activated",
         "userId": "f098d803-bf77-453b-abac-36b3806f4345"
       }
