@@ -53,7 +53,7 @@ Automated topic discovery from external signals. Feeds new Ideas into the Conten
 
 The core engine. Takes a topic from Idea to Published through research, drafting, evaluation, and revision cycles.
 
-**Three branches, one workflow** (WF-1, 62 nodes on `n8n.t-0.co`):
+**Three branches, one workflow** (WF-1, 61 nodes on `n8n.t-0.co`):
 
 | Branch | Trigger condition | What happens |
 |--------|-------------------|--------------|
