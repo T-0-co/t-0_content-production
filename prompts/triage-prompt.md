@@ -55,16 +55,16 @@ Respond with ONLY a JSON object. No other text.
 {
   "relevance_score": 4,
   "category_tags": ["AI Models", "Agents & Automation"],
-  "ai_tags": ["Claude", "Tool Calling"],
+  "tags": ["Claude", "Tool Calling"],
   "summary": "2-3 sentence summary focusing on why this matters for T-0's audience.",
   "reasoning": "Brief explanation of the score."
 }
 ```
 
-### Category Tags (pick 1-3 from this list)
+### Category Tags (pick 1-3 from this list — these map to Ghost blog tags)
 
-AI Models, Agents & Automation, Context Engineering, Dev Tools, Infrastructure, Security, Industry Moves, Regulation, Funding, Competitors, Strategy, Work & Society, German Market, MCP, Ghost, Notion
+AI Models, Agents & Automation, Context Engineering, Dev Tools, Infrastructure, Security, Industry Moves, Regulation, Funding, Competitors, Strategy, Work & Society, German Market, MCP, Ghost, Notion, Tools & Tactics
 
-### AI-Tags (pick 1-5 from existing tags or create new ones)
+### Tags (pick 1-5 — specific topic tags for internal use)
 
 Use specific topic tags like: Claude, GPT, Llama, Tool Calling, RAG, MCP Hub, n8n, Self-Hosting, Open Source, etc.

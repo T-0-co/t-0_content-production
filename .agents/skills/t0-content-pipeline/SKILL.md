@@ -42,7 +42,7 @@ Use `mcp__notion__API-get-block-children` to fetch page content. These are Notio
 
 If a Notion page ID was provided, also fetch the Content Creation DB entry:
 - Use `mcp__notion__API-retrieve-a-page` with the page ID
-- Extract: Title, Content Type, Category Tags, Description, any existing Draft content, Voice Seeds, Source URLs
+- Extract: Name, Content Type, Description, any existing Draft content, Voice Seeds, Source URLs
 
 ### Phase 1: Research
 
@@ -79,11 +79,11 @@ Generate the draft using the resolved prompt + research context + any Voice Seed
 Apply the evaluation rubric from `prompts/evaluation-prompt.md`:
 
 1. Score all 7 dimensions (Clarity, Structure, Accuracy, Credibility, Engagement, Voice, Actionability)
-2. Calculate weighted composite (max 40)
+2. **Do NOT calculate composite** — the `Composite Score` property is a Notion formula that auto-calculates from the 7 dimension scores (weighted average, 1-5 scale)
 3. Apply gate rules:
    - Voice < 4 → BLOCKED
    - Any dimension < 3 → BLOCKED
-   - Composite >= 28 AND all gates pass → PASS
+   - Average of all scores >= 4.0 AND all gates pass → PASS
 
 **Present scores to Aaron** with the evaluation JSON and top strength / primary weakness.
 
@@ -95,7 +95,7 @@ If PASS: recommend next status ("Pre Review").
 If Aaron approves, update the Content Creation DB entry:
 
 1. **If new topic (no existing page):** Create a new page in Content Creation DB (`2afc0fdf-942d-813e-bafa-fe13acf0b35f`)
-   - Properties: Name (title), Content Type, Status ("Draft" or "Pre Review"), Category Tags
+   - Properties: Name (title), Content Type, Status ("Draft" or "Pre Review")
    - Add draft as page content (Notion blocks)
 
 2. **If existing page:** Update the page
@@ -104,8 +104,7 @@ If Aaron approves, update the Content Creation DB entry:
    - Set Pipeline Version to current git short hash of this repo
 
 3. **Always set these properties:**
-   - `Composite Score` — the weighted total
-   - `Quality Tier` — Excellent/Good/Acceptable/Below Standard/Poor
+   - **Do NOT write `Composite Score`** — it is a formula (auto-calculates from dimension scores)
    - `Pipeline Version` — git short hash from this repo
    - `Evaluated At` — today's date
    - `Evaluation Notes` — top strength, primary weakness, word count delta
@@ -148,7 +147,7 @@ When invoked with `--eval-only`:
 2. Skip Phases 1-2 (research and draft)
 3. Run Phase 3 (evaluate) on the existing content
 4. Present scores and recommendation
-5. Optionally update Notion properties (Composite Score, Quality Tier)
+5. Optionally update Notion dimension score properties (Composite Score auto-calculates)
 
 ## Rules
 
