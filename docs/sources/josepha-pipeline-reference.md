@@ -1,6 +1,6 @@
 # Josepha Content Pipeline — Architecture Reference
 
-> **Source:** `/home/aaron/VSCodeProjects/personal-projects/Josepha/`
+> **Source:** `/home/aaron/Projects/personal-projects/Josepha/`
 > **Status:** Fully operational (different business, same pattern)
 > **Role:** Working template/analog for the T-0 pipeline
 

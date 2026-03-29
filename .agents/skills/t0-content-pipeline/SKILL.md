@@ -117,7 +117,7 @@ Use `mcp__notion__API-patch-page` for properties and `mcp__notion__API-post-page
 **Content blocks:** The MCP `patch-block-children` tool only supports `paragraph` and `bulleted_list_item` block types. Blog drafts require `heading_2`, `heading_3`, and `heading_4` blocks. Use direct `curl` to the Notion API instead:
 
 ```bash
-bash -c 'source /home/aaron/VSCodeProjects/.env && curl -s -X PATCH \
+bash -c 'source /home/aaron/Projects/.env && curl -s -X PATCH \
   "https://api.notion.com/v1/blocks/{page_id}/children" \
   -H "Authorization: Bearer $NOTION_INTEGRATION_SECRET" \
   -H "Notion-Version: 2022-06-28" \
